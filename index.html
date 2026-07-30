@@ -905,5 +905,80 @@ function confirmDeleteTransfer(tId, opId, amount, purpose) {
   });
 }
 </script>
+<!-- ========================================== -->
+<!-- بداية كود التشخيص الذاتي للأخطاء -->
+<!-- ========================================== -->
+<div id="debug-overlay" style="position:fixed; top:0; left:0; right:0; background:#ffebee; border-bottom:3px solid #f44336; padding:15px; z-index:999999; font-family:sans-serif; direction:rtl; display:none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+  <h3 style="margin:0 0 10px 0; color:#c62828; font-size:16px;">🚨 تقرير الحالة التشخيصي:</h3>
+  <div id="debug-logs" style="max-height:250px; overflow-y:auto; font-size:13px; color:#333; line-height:1.6;"></div>
+  <button onclick="document.getElementById('debug-overlay').style.display='none'" style="margin-top:10px; padding:8px 20px; background:#f44336; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">إخفاء التقرير</button>
+</div>
+
+<script>
+(function() {
+  const logDiv = document.getElementById('debug-logs');
+  const overlay = document.getElementById('debug-overlay');
+  
+  function addLog(msg, type = 'error') {
+    overlay.style.display = 'block';
+    const time = new Date().toLocaleTimeString('ar-EG');
+    const color = type === 'error' ? '#f44336' : (type === 'success' ? '#2e7d32' : '#1565c0');
+    const icon = type === 'error' ? '❌' : (type === 'success' ? '✅' : 'ℹ️');
+    logDiv.innerHTML += `<div style="margin-bottom:6px; padding:8px; background:white; border-right:4px solid ${color}; border-radius:4px;"><strong>${icon} [${time}]</strong> ${msg}</div>`;
+  }
+
+  // 1. اعتراض جميع أخطاء الجافاسكريبت المخفية
+  window.onerror = function(message, source, lineno, colno, error) {
+    addLog(`خطأ برمجي: ${message} (السطر: ${lineno})`, 'error');
+    return true;
+  };
+
+  // 2. اعتراض رسائل Console
+  const originalError = console.error;
+  console.error = function(...args) {
+    originalError.apply(console, args);
+    addLog(`Console Error: ${args.join(' ')}`, 'error');
+  };
+  
+  const originalLog = console.log;
+  console.log = function(...args) {
+    originalLog.apply(console, args);
+    addLog(`Log: ${args.join(' ')}`, 'info');
+  };
+
+  // 3. فحص وجود مفاتيح Supabase
+  if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_ANON_KEY === 'undefined') {
+    addLog('كارثة: متغيرات SUPABASE_URL أو SUPABASE_ANON_KEY غير موجودة! هذا يعني أن الكود لم ينسخ بالكامل أو تم حذفه.', 'error');
+  } else {
+    addLog(`تم العثور على مفاتيح Supabase. الرابط يبدأ بـ: ${SUPABASE_URL.substring(0, 25)}...`, 'success');
+  }
+
+  // 4. فحص تحميل مكتبة Supabase والاتصال
+  setTimeout(async () => {
+    try {
+      if (typeof window.supabase === 'undefined') {
+        addLog('مكتبة Supabase لم يتم تحميلها. تأكد من وجود وسم <script src="...supabase-js..."> في بداية الملف.', 'error');
+      } else if (typeof supabase === 'undefined') {
+        addLog('متغير supabase غير معرف. قد يكون هناك خطأ في سطر إنشاء العميل (createClient).', 'error');
+      } else {
+        addLog('مكتبة Supabase محملة بنجاح. جاري اختبار الاتصال...', 'info');
+        
+        // محاولة اتصال بسيطة للتحقق
+        const { error } = await supabase.from('clients').select('count', { count: 'exact', head: true });
+        if (error) {
+          addLog(`فشل الاتصال بقاعدة البيانات: ${error.message}. تأكد من صحة المفاتيح أو أن الجداول موجودة.`, 'error');
+        } else {
+          addLog('الاتصال بـ Supabase ناجح 100%! إذا كانت الصفحة لا تزال لا تعمل، فالمشكلة في متصفح الهاتف (Cache).', 'success');
+        }
+      }
+    } catch (e) {
+      addLog(`استثناء غير متوقع أثناء الفحص: ${e.message}`, 'error');
+    }
+  }, 1500);
+})();
+</script>
+<!-- ========================================== -->
+<!-- نهاية كود التشخيص الذاتي للأخطاء -->
+<!-- ========================================== -->
 </body>
 </html>
