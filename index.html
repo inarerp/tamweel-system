@@ -172,10 +172,25 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabase;
 try {
+  console.log('window.supabase type:', typeof window.supabase);
+  console.log('window.supabase keys:', Object.keys(window.supabase));
+  
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  console.log('✅ Supabase connected');
+  
+  console.log('supabase type:', typeof supabase);
+  console.log('supabase keys:', Object.keys(supabase));
+  console.log('supabase.from type:', typeof supabase.from);
+  
+  if (typeof supabase.from !== 'function') {
+    alert('️ مشكلة: supabase.from ليس function!\n\n' + 
+          'Type: ' + typeof supabase + '\n' +
+          'Keys: ' + Object.keys(supabase).join(', '));
+  } else {
+    console.log('✅ Supabase connected successfully');
+  }
 } catch (err) {
-  alert('خطأ: ' + err.message);
+  alert('❌ خطأ في إنشاء Supabase client: ' + err.message);
+  console.error('Error:', err);
 }
 
 let currentUser = null;
