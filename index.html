@@ -499,7 +499,49 @@
 
 <!-- Toast -->
 <div id="toast" class="toast"></div>
+<!-- Error Display for Mobile -->
+<div id="mobileErrorLog" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#fff3cd; border-top:3px solid #ffc107; padding:15px; max-height:200px; overflow-y:auto; z-index:9999; font-size:13px; direction:rtl;">
+  <strong style="color:#856404;"> سجل الأخطاء:</strong>
+  <div id="mobileErrorContent" style="margin-top:8px; color:#856404;"></div>
+  <button onclick="document.getElementById('mobileErrorLog').style.display='none'" style="margin-top:10px; padding:5px 15px; background:#ffc107; border:none; border-radius:5px; cursor:pointer;">إخفاء</button>
+</div>
 
+<script>
+// عرض الأخطاء على الشاشة
+window.onerror = function(msg, url, line) {
+  const log = document.getElementById('mobileErrorLog');
+  const content = document.getElementById('mobileErrorContent');
+  if (log && content) {
+    log.style.display = 'block';
+    content.innerHTML += `<div style="margin-bottom:8px; padding:5px; background:#fff; border-radius:4px;">❌ ${msg}<br><small style="color:#999;">السطر: ${line}</small></div>`;
+  }
+  return true;
+};
+
+// اعتراض console.error
+const originalError = console.error;
+console.error = function(...args) {
+  originalError.apply(console, args);
+  const log = document.getElementById('mobileErrorLog');
+  const content = document.getElementById('mobileErrorContent');
+  if (log && content) {
+    log.style.display = 'block';
+    content.innerHTML += `<div style="margin-bottom:8px; padding:5px; background:#fff; border-radius:4px;">❌ ${args.join(' ')}</div>`;
+  }
+};
+
+// إظهار الأخطاء تلقائياً عند تسجيل الدخول
+const originalLogin = document.getElementById('loginForm')?.onsubmit;
+document.getElementById('loginForm')?.addEventListener('submit', function() {
+  setTimeout(() => {
+    const log = document.getElementById('mobileErrorLog');
+    if (log && log.style.display === 'none') {
+      log.style.display = 'block';
+      document.getElementById('mobileErrorContent').innerHTML = '<div>⏳ جاري محاولة تسجيل الدخول... انتظر رسالة الخطأ.</div>';
+    }
+  }, 100);
+});
+</script>
 <script>
 // ============================================
 // 1. Supabase Configuration
