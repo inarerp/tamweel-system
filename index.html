@@ -226,10 +226,14 @@ document.getElementById('confirmModal').classList.remove('active');
 }
 
 async function addLog(operation_id,action,description){
+try{
 await supabase.from('operation_logs').insert({
 operation_id,action,description,
 user_email:currentUser?.email||'Unknown'
 });
+}catch(e){
+console.error('Error adding log:',e);
+}
 }
 
 document.getElementById('loginForm').addEventListener('submit',async(e)=>{
@@ -255,9 +259,17 @@ alert('خطأ: '+err.message);
 
 async function loadUserProfile(){
 try{
-const{data}=await supabase.from('user_profiles').select('role,entity_id').eq('id',currentUser.id).maybeSingle();
-userRole=data?.role||'admin';
+const{data,error}=await supabase.from('user_profiles').select('role,entity_id').eq('id',currentUser.id).maybeSingle();
+if(error){
+console.warn('⚠️ Could not load profile:',error.message);
+userRole='admin';
+}else if(data){
+userRole=data.role||'admin';
+}else{
+userRole='admin';
+}
 }catch(err){
+console.error(' Error in loadUserProfile:',err);
 userRole='admin';
 }
 }
@@ -268,6 +280,7 @@ location.reload();
 }
 
 function showApp(){
+try{
 document.getElementById('loginScreen').style.display='none';
 document.getElementById('appContainer').style.display='block';
 document.getElementById('userEmail').textContent=currentUser.email;
@@ -276,6 +289,10 @@ if(userRole!=='admin'){
 document.querySelectorAll('.admin-only').forEach(el=>el.style.display='none');
 }
 loadDashboard();
+}catch(err){
+console.error('❌ Error in showApp:',err);
+alert('خطأ في تحميل التطبيق: '+err.message);
+}
 }
 
 supabase.auth.getSession().then(({data:{session}})=>{
@@ -298,6 +315,7 @@ else if(screenId==='transfers')loadTransfers();
 }
 
 async function loadDashboard(){
+try{
 const{data:ops}=await supabase.from('operations').select('*');
 const{data:opInvestors}=await supabase.from('operation_investors').select('*');
 const{data:transfers}=await supabase.from('transfers').select('*');
@@ -343,9 +361,13 @@ document.getElementById('dashboardStats').innerHTML=`
 <div class="stat-card"><h3>مكتملة</h3><div class="value green">${completedOperations}</div></div>
 <div class="stat-card"><h3>إجمالي العمليات</h3><div class="value">${ops?.length||0}</div></div>
 `;
+}catch(err){
+console.error('❌ Error in loadDashboard:',err);
+}
 }
 
 async function loadClients(){
+try{
 const{data}=await supabase.from('clients').select('*').order('created_at',{ascending:false});
 if(!data||data.length===0){document.getElementById('clientsTable').innerHTML='<div class="empty-state">لا يوجد عملاء</div>';return;}
 let html='<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th>';
@@ -358,6 +380,9 @@ html+='</tr>';
 });
 html+='</tbody></table>';
 document.getElementById('clientsTable').innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadClients:',err);
+}
 }
 
 function openClientModal(client=null){
@@ -397,7 +422,6 @@ showToast('تم الحذف');
 });
 }
 
-// ============ حساب أرصدة الممولين من التحويلات ============
 function calculateInvestorBalance(invId,opInvestors,transfers,ops){
 const myContribs=opInvestors?.filter(oi=>oi.investor_id===invId)||[];
 const totalCapital=myContribs.reduce((s,c)=>s+parseFloat(c.contribution||0),0);
@@ -416,6 +440,7 @@ return{totalCapital,workingCapital,capitalReturned,capitalPendingReturn,totalPro
 }
 
 async function loadInvestors(){
+try{
 const{data}=await supabase.from('investors').select('*').order('created_at',{ascending:false});
 if(!data||data.length===0){document.getElementById('investorsTable').innerHTML='<div class="empty-state">لا يوجد ممولين</div>';return;}
 const{data:opInvestors}=await supabase.from('operation_investors').select('*');
@@ -432,9 +457,13 @@ html+='</tr>';
 });
 html+='</tbody></table>';
 document.getElementById('investorsTable').innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadInvestors:',err);
+}
 }
 
 async function openInvestorDetail(invId){
+try{
 const{data:inv}=await supabase.from('investors').select('*').eq('id',invId).single();
 document.getElementById('investorDetailName').textContent='تفاصيل: '+inv.name;
 const{data:opInvestors}=await supabase.from('operation_investors').select('*,operations(name,status,amount)').eq('investor_id',invId);
@@ -456,6 +485,9 @@ opInvestors?.forEach(oi=>{opsHtml+=`<tr><td>${oi.operations?.name||'-'}</td><td>
 opsHtml+='</tbody></table>';
 document.getElementById('investorOpsList').innerHTML=opsHtml||'<div class="empty-state">لا يوجد</div>';
 document.getElementById('investorDetailModal').classList.add('active');
+}catch(err){
+console.error('❌ Error in openInvestorDetail:',err);
+}
 }
 
 function openInvestorModal(investor=null){
@@ -496,6 +528,7 @@ showToast('تم الحذف');
 }
 
 async function loadOperations(){
+try{
 const{data}=await supabase.from('operations').select('*,clients(name)').order('created_at',{ascending:false});
 if(!data||data.length===0){document.getElementById('operationsTable').innerHTML='<div class="empty-state">لا يوجد عمليات</div>';return;}
 let html='<table><thead><tr><th>الاسم</th><th>العميل</th><th>المبلغ</th><th>الربح</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>';
@@ -504,9 +537,13 @@ html+=`<tr><td><strong>${o.name}</strong></td><td>${o.clients?.name||'-'}</td><t
 });
 html+='</tbody></table>';
 document.getElementById('operationsTable').innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadOperations:',err);
+}
 }
 
 async function openOperationModal(operation=null){
+try{
 document.getElementById('operationModalTitle').textContent=operation?'تعديل':'إضافة';
 document.getElementById('operationId').value=operation?.id||'';
 document.getElementById('opName').value=operation?.name||'';
@@ -528,6 +565,9 @@ let options='<option value="">اختر</option>';
 clients.forEach(c=>{options+=`<option value="${c.id}" ${operation?.client_id===c.id?'selected':''}>${c.name}</option>`;});
 document.getElementById('opClient').innerHTML=options;
 document.getElementById('operationModal').classList.add('active');
+}catch(err){
+console.error('❌ Error in openOperationModal:',err);
+}
 }
 
 document.getElementById('opStartDate').addEventListener('change',calculateEndDate);
@@ -575,6 +615,7 @@ openOperationModal(data);
 }
 
 async function openOperationDetails(opId){
+try{
 currentOpId=opId;
 const{data:op}=await supabase.from('operations').select('*,clients(name)').eq('id',opId).single();
 if(!op)return;
@@ -591,9 +632,13 @@ document.querySelector('.tab[onclick*="investors"]').style.display='none';
 document.getElementById('opTabInvestors').style.display='none';
 }
 document.getElementById('operationDetailsModal').classList.add('active');
+}catch(err){
+console.error('❌ Error in openOperationDetails:',err);
+}
 }
 
 async function refreshOperationSummary(){
+try{
 const op=currentOpData;
 const{data:opInvestors}=await supabase.from('operation_investors').select('*').eq('operation_id',op.id);
 const{data:transfers}=await supabase.from('transfers').select('*').eq('operation_id',op.id);
@@ -622,6 +667,9 @@ document.getElementById('opSummaryGrid').innerHTML=`
 <div class="summary-item"><label>رأس المال المُرجع</label><div class="val">${formatMoney(capitalReturned)}/${formatMoney(totalInvested)}</div></div>
 <div class="summary-item"><label>الحالة</label><div class="val"><span class="badge badge-${op.status}">${getStatusText(op.status)}</span></div></div>
 `;
+}catch(err){
+console.error('❌ Error in refreshOperationSummary:',err);
+}
 }
 
 function showOpTab(tabName,btn){
@@ -671,15 +719,20 @@ await refreshOperationDetails();
 }
 
 async function refreshOperationDetails(){
+try{
 const{data:op}=await supabase.from('operations').select('*,clients(name)').eq('id',currentOpId).single();
 currentOpData=op;
 await refreshOperationSummary();
 loadOpInvestorsTab(op);
 loadOpTransfersTab(op);
 loadOpTimelineTab(op);
+}catch(err){
+console.error('❌ Error in refreshOperationDetails:',err);
+}
 }
 
 async function loadOpInvestorsTab(op){
+try{
 const{data:opInvestors}=await supabase.from('operation_investors').select('*,investors(name)').eq('operation_id',op.id);
 const container=document.getElementById('opInvestorsList');
 if(!opInvestors||opInvestors.length===0){container.innerHTML='<div class="empty-state">لا يوجد ممولين</div>';return;}
@@ -693,6 +746,9 @@ html+='</tr>';
 });
 html+='</tbody></table>';
 container.innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadOpInvestorsTab:',err);
+}
 }
 
 async function validateOpInvestorInputs(){
@@ -725,9 +781,9 @@ const{data:existing}=await supabase.from('operation_investors').select('id,contr
 const totalContrib=(existing?.filter(i=>i.id!==editId).reduce((s,i)=>s+parseFloat(i.contribution||0),0)||0)+contrib;
 const totalProfit=(existing?.filter(i=>i.id!==editId).reduce((s,i)=>s+parseFloat(i.profit||0),0)||0)+profit;
 let warnings=[];
-if(contrib<=0)warnings.push('⚠️ المساهمة يجب أن تكون أكبر من صفر');
+if(contrib<=0)warnings.push('️ المساهمة يجب أن تكون أكبر من صفر');
 if(profit<0)warnings.push('️ الربح لا يمكن أن يكون سالباً');
-if(totalContrib>opAmount)warnings.push(`️ المساهمات (${formatMoney(totalContrib)}) تتجاوز التمويل (${formatMoney(opAmount)})`);
+if(totalContrib>opAmount)warnings.push(`⚠️ المساهمات (${formatMoney(totalContrib)}) تتجاوز التمويل (${formatMoney(opAmount)})`);
 let companyProfit=0;
 if(currentOpData.company_profit_type==='percentage'&&opFinalProfit)companyProfit=(opFinalProfit*parseFloat(currentOpData.company_profit_value||0))/100;
 else if(currentOpData.company_profit_type==='fixed')companyProfit=parseFloat(currentOpData.company_profit_value||0);
@@ -797,6 +853,7 @@ showToast('تم الحذف');
 }
 
 async function loadOpTransfersTab(op){
+try{
 const{data:transfers}=await supabase.from('transfers').select('*,investors(name)').eq('operation_id',op.id).order('transfer_date',{ascending:false});
 const container=document.getElementById('opTransfersList');
 if(!transfers||transfers.length===0){container.innerHTML='<div class="empty-state">لا يوجد تحويلات</div>';return;}
@@ -813,21 +870,29 @@ html+='</tr>';
 });
 html+='</tbody></table>';
 container.innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadOpTransfersTab:',err);
+}
 }
 
 async function loadOpTimelineTab(op){
+try{
 const{data:logs}=await supabase.from('operation_logs').select('*').eq('operation_id',op.id).order('created_at',{ascending:false});
 const container=document.getElementById('opTimelineList');
 if(!logs||logs.length===0){container.innerHTML='<div class="empty-state">لا يوجد سجل</div>';return;}
 let html='<div class="timeline">';
 logs.forEach(log=>{
-html+=`<div class="timeline-item"><div class="timeline-time">${new Date(log.created_at).toLocaleString('ar-EG')}</div><div class="timeline-user"> ${log.user_email||'مجهول'}</div><div class="timeline-content"><strong>${log.action}</strong><p>${log.description}</p></div></div>`;
+html+=`<div class="timeline-item"><div class="timeline-time">${new Date(log.created_at).toLocaleString('ar-EG')}</div><div class="timeline-user">👤 ${log.user_email||'مجهول'}</div><div class="timeline-content"><strong>${log.action}</strong><p>${log.description}</p></div></div>`;
 });
 html+='</div>';
 container.innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadOpTimelineTab:',err);
+}
 }
 
 async function loadTransfers(){
+try{
 const{data}=await supabase.from('transfers').select('*,operations(name),investors(name)').order('transfer_date',{ascending:false});
 if(!data||data.length===0){document.getElementById('transfersTable').innerHTML='<div class="empty-state">لا يوجد تحويلات</div>';return;}
 const purposeMap={client_funding:'تمويل',client_repayment:'سداد',capital_return:'إرجاع رأس مال',profit_distribution:'توزيع أرباح',settlement:'تسوية',additional_funding:'تمويل إضافي',other:'أخرى'};
@@ -843,6 +908,9 @@ html+='</tr>';
 });
 html+='</tbody></table>';
 document.getElementById('transfersTable').innerHTML=html;
+}catch(err){
+console.error('❌ Error in loadTransfers:',err);
+}
 }
 
 function toggleInvestorSelect(){
@@ -861,6 +929,7 @@ row.style.display='none';
 }
 
 async function openTransferModal(){
+try{
 document.getElementById('transferId').value='';
 document.getElementById('transferType').value='company_to_client';
 document.getElementById('transferPurpose').value='client_funding';
@@ -873,6 +942,9 @@ let options='<option value="">بدون عملية</option>';
 ops.forEach(o=>{options+=`<option value="${o.id}">${o.name}</option>`;});
 document.getElementById('transferOperation').innerHTML=options;
 document.getElementById('transferModal').classList.add('active');
+}catch(err){
+console.error('❌ Error in openTransferModal:',err);
+}
 }
 
 function openAddTransferToOp(){
