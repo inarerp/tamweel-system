@@ -1,33 +1,339 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>اختبار</title>
+<title>نظام إدارة التمويل</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f2f5;direction:rtl;color:#333}
+.login-container{display:flex;justify-content:center;align-items:center;min-height:100vh;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}
+.login-box{background:white;padding:40px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);width:400px;max-width:90%}
+.login-box h1{text-align:center;color:#333;margin-bottom:30px;font-size:28px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;margin-bottom:6px;color:#555;font-weight:600;font-size:14px}
+.form-group input{width:100%;padding:10px 12px;border:2px solid #e0e0e0;border-radius:8px;font-size:15px}
+.btn{padding:12px 20px;border:none;border-radius:8px;cursor:pointer;font-size:16px;font-weight:600;display:block;width:100%}
+.btn-primary{background:#667eea;color:white}
+.btn-primary:hover{background:#5568d3}
+.app-container{display:none;min-height:100vh}
+.header{background:white;padding:15px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center}
+.header h1{color:#333;font-size:22px}
+.user-info{display:flex;align-items:center;gap:12px}
+.btn-secondary{background:#6c757d;color:white;padding:8px 16px;font-size:14px;width:auto}
+.nav{background:white;padding:12px 20px;display:flex;gap:8px;overflow-x:auto}
+.nav button{padding:10px 18px;border:none;background:#f0f2f5;border-radius:8px;cursor:pointer;font-size:14px}
+.nav button.active{background:#667eea;color:white}
+.content{padding:20px;max-width:1400px;margin:0 auto}
+.screen{display:none}
+.screen.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.stat-card{background:white;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);border-right:4px solid #667eea}
+.stat-card h3{color:#666;font-size:13px;margin-bottom:8px}
+.stat-card .value{font-size:24px;font-weight:bold;color:#333}
+.table-container{background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);overflow:hidden;margin-top:20px}
+.table-header{padding:18px 20px;background:#fafbfc;border-bottom:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:center}
+.table-header h2{color:#333;font-size:18px}
+table{width:100%;border-collapse:collapse}
+th{background:#f8f9fa;padding:14px;text-align:right;font-weight:600;color:#555;border-bottom:2px solid #e0e0e0}
+td{padding:14px;border-bottom:1px solid #f0f0f0}
+.badge{padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600}
+.badge-draft{background:#fff3cd;color:#856404}
+.badge-active{background:#d4edda;color:#155724}
+.badge-completed{background:#d1ecf1;color:#0c5460}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:white;padding:12px 24px;border-radius:8px;z-index:2000;opacity:0;transition:opacity 0.3s}
+.toast.show{opacity:1}
+.toast.success{background:#28a745}
+.toast.error{background:#dc3545}
+</style>
 </head>
 <body>
-<h1>اختبار الزر</h1>
-<button onclick="alert('الزر شغال!')">زر 1: Alert مباشر</button>
-<br><br>
-<button onclick="testFunc()">زر 2: يستدعي دالة</button>
-<br><br>
-<input type="text" id="testInput" placeholder="اكتب هنا">
-<br><br>
-<button onclick="testInput2()">زر 3: يقرأ Input</button>
+
+<div id="loginScreen" class="login-container">
+<div class="login-box">
+<h1>نظام إدارة التمويل</h1>
+<div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="loginEmail"></div>
+<div class="form-group"><label>كلمة المرور</label><input type="password" id="loginPassword"></div>
+<button class="btn btn-primary" onclick="handleLoginClick()">تسجيل الدخول</button>
+<div id="errorMsg" style="margin-top:15px;color:red;display:none;"></div>
+</div>
+</div>
+
+<div id="appContainer" class="app-container">
+<div class="header">
+<h1>نظام إدارة التمويل</h1>
+<div class="user-info">
+<span id="userEmail"></span>
+<span id="userRole" class="badge badge-active"></span>
+<button class="btn btn-secondary" onclick="doLogout()">خروج</button>
+</div>
+</div>
+<div class="nav">
+<button class="active" onclick="showScreen('dashboard',this)">الرئيسية</button>
+<button onclick="showScreen('clients',this)">العملاء</button>
+<button onclick="showScreen('investors',this)">الممولين</button>
+<button onclick="showScreen('operations',this)">العمليات</button>
+<button onclick="showScreen('transfers',this)">التحويلات</button>
+</div>
+<div class="content">
+<div id="dashboard" class="screen active"><div class="stats-grid" id="dashboardStats"></div></div>
+<div id="clients" class="screen"><div class="table-container"><div class="table-header"><h2>العملاء</h2></div><div id="clientsTable"></div></div></div>
+<div id="investors" class="screen"><div class="table-container"><div class="table-header"><h2>الممولين</h2></div><div id="investorsTable"></div></div></div>
+<div id="operations" class="screen"><div class="table-container"><div class="table-header"><h2>العمليات</h2></div><div id="operationsTable"></div></div></div>
+<div id="transfers" class="screen"><div class="table-container"><div class="table-header"><h2>التحويلات</h2></div><div id="transfersTable"></div></div></div>
+</div>
+</div>
+
+<div id="toast" class="toast"></div>
 
 <script>
-alert('1. الصفحة اتحملت');
+const SUPABASE_URL='https://znkexrtkqzmsqnmzvxoq.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
 
-function testFunc() {
-    alert('2. الدالة اشتغلت!');
+let supabase;
+try{
+supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+console.log('✅ Supabase connected');
+}catch(err){
+alert('خطأ في Supabase: '+err.message);
 }
 
-function testInput2() {
-    const val = document.getElementById('testInput').value;
-    alert('3. قيمة الـ Input: ' + val);
+let currentUser=null;
+let userRole='admin';
+
+function showToast(msg,type='success'){
+const t=document.getElementById('toast');
+t.textContent=msg;
+t.className='toast show '+type;
+setTimeout(()=>t.className='toast',3000);
 }
 
-alert('4. typeof testFunc = ' + typeof testFunc);
-alert('5. النظام جاهز - جرب الأزرار التلاتة');
+function formatMoney(n){
+return(parseFloat(n)||0).toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2})+' ج.م';
+}
+
+function formatDate(d){
+if(!d)return'-';
+return new Date(d).toLocaleDateString('ar-EG');
+}
+
+function getStatusText(status){
+return{draft:'تحت الإنشاء',active:'نشطة',completed:'انتهت',cancelled:'ألغيت'}[status]||status;
+}
+
+function handleLoginClick(){
+console.log('🔘 Login button clicked');
+const email=document.getElementById('loginEmail').value;
+const password=document.getElementById('loginPassword').value;
+const errorMsg=document.getElementById('errorMsg');
+
+if(!email||!password){
+errorMsg.textContent='⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور';
+errorMsg.style.display='block';
+return;
+}
+
+errorMsg.style.display='none';
+console.log(' Email:',email);
+
+supabase.auth.signInWithPassword({email:email,password:password}).then(({data,error})=>{
+if(error){
+console.error('❌ Login error:',error);
+errorMsg.textContent='❌ '+error.message;
+errorMsg.style.display='block';
+return;
+}
+
+console.log('✅ Login success:',data.user.email);
+currentUser=data.user;
+
+supabase.from('user_profiles').select('role,entity_id').eq('id',currentUser.id).maybeSingle().then(({data:profile,error:profError})=>{
+if(profError){
+console.warn('️ Profile error:',profError.message);
+userRole='admin';
+}else if(profile){
+userRole=profile.role||'admin';
+}else{
+userRole='admin';
+}
+
+showApp();
+}).catch(err=>{
+console.error('Profile exception:',err);
+userRole='admin';
+showApp();
+});
+}).catch(err=>{
+console.error('❌ Exception:',err);
+errorMsg.textContent='❌ '+err.message;
+errorMsg.style.display='block';
+});
+}
+
+function showApp(){
+try{
+document.getElementById('loginScreen').style.display='none';
+document.getElementById('appContainer').style.display='block';
+document.getElementById('userEmail').textContent=currentUser.email;
+document.getElementById('userRole').textContent=userRole==='admin'?'مدير':userRole==='investor'?'ممول':'عميل';
+loadDashboard();
+}catch(err){
+console.error('❌ Error in showApp:',err);
+alert('خطأ في تحميل التطبيق: '+err.message);
+}
+}
+
+async function doLogout(){
+await supabase.auth.signOut();
+location.reload();
+}
+
+supabase.auth.getSession().then(({data:{session}})=>{
+if(session){
+currentUser=session.user;
+supabase.from('user_profiles').select('role').eq('id',currentUser.id).maybeSingle().then(({data:profile})=>{
+userRole=profile?.role||'admin';
+showApp();
+}).catch(()=>{
+userRole='admin';
+showApp();
+});
+}
+});
+
+function showScreen(screenId,btn){
+document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+document.getElementById(screenId).classList.add('active');
+if(btn)btn.classList.add('active');
+if(screenId==='dashboard')loadDashboard();
+else if(screenId==='clients')loadClients();
+else if(screenId==='investors')loadInvestors();
+else if(screenId==='operations')loadOperations();
+else if(screenId==='transfers')loadTransfers();
+}
+
+async function loadDashboard(){
+try{
+const{data:ops}=await supabase.from('operations').select('*');
+const{data:opInvestors}=await supabase.from('operation_investors').select('*');
+const{data:transfers}=await supabase.from('transfers').select('*');
+const{data:investors}=await supabase.from('investors').select('*');
+
+const today=new Date().toISOString().split('T')[0];
+const next30Days=new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0];
+
+let totalActiveFunding=0,totalOutstandingCapital=0,totalOutstandingInvestorProfit=0;
+let operationsEndingSoon=0,overdueOperations=0,completedOperations=0;
+
+ops?.forEach(op=>{
+if(op.status==='active'){
+totalActiveFunding+=parseFloat(op.amount||0);
+const repaid=transfers?.filter(t=>t.operation_id===op.id&&t.purpose==='client_repayment').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+totalOutstandingCapital+=Math.max(0,parseFloat(op.amount||0)-repaid);
+const opInv=opInvestors?.filter(oi=>oi.operation_id===op.id)||[];
+const totalInvProfit=opInv.reduce((s,oi)=>s+parseFloat(oi.profit||0),0);
+const distributedProfit=transfers?.filter(t=>t.operation_id===op.id&&t.purpose==='profit_distribution').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+totalOutstandingInvestorProfit+=Math.max(0,totalInvProfit-distributedProfit);
+if(op.end_date&&op.end_date<=next30Days&&op.end_date>=today)operationsEndingSoon++;
+if(op.end_date&&op.end_date<today)overdueOperations++;
+}
+if(op.status==='completed')completedOperations++;
+});
+
+let availableInvestorCapital=0;
+investors?.forEach(inv=>{
+const myContribs=opInvestors?.filter(oi=>oi.investor_id===inv.id)||[];
+const totalCapital=myContribs.reduce((s,c)=>s+parseFloat(c.contribution||0),0);
+const workingCapital=myContribs.filter(c=>{const op=ops?.find(o=>o.id===c.operation_id);return op&&(op.status==='active'||op.status==='draft');}).reduce((s,c)=>s+parseFloat(c.contribution||0),0);
+const capitalReturned=transfers?.filter(t=>t.investor_id===inv.id&&t.purpose==='capital_return').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+const capitalFromCompletedOps=totalCapital-workingCapital;
+const capitalPendingReturn=Math.max(0,capitalFromCompletedOps-capitalReturned);
+availableInvestorCapital+=capitalPendingReturn;
+});
+
+document.getElementById('dashboardStats').innerHTML=`
+<div class="stat-card"><h3>التمويل النشط</h3><div class="value">${formatMoney(totalActiveFunding)}</div></div>
+<div class="stat-card"><h3>رأس المال outstanding</h3><div class="value">${formatMoney(totalOutstandingCapital)}</div></div>
+<div class="stat-card"><h3>أرباح مستحقة</h3><div class="value">${formatMoney(totalOutstandingInvestorProfit)}</div></div>
+<div class="stat-card"><h3>رأس مال بانتظار الإرجاع</h3><div class="value">${formatMoney(availableInvestorCapital)}</div></div>
+<div class="stat-card"><h3>تنتهي قريباً</h3><div class="value">${operationsEndingSoon}</div></div>
+<div class="stat-card"><h3>متأخرة</h3><div class="value">${overdueOperations}</div></div>
+<div class="stat-card"><h3>مكتملة</h3><div class="value">${completedOperations}</div></div>
+<div class="stat-card"><h3>إجمالي العمليات</h3><div class="value">${ops?.length||0}</div></div>
+`;
+}catch(err){
+console.error('❌ Error in loadDashboard:',err);
+}
+}
+
+async function loadClients(){
+try{
+const{data}=await supabase.from('clients').select('*').order('created_at',{ascending:false});
+if(!data||data.length===0){document.getElementById('clientsTable').innerHTML='<div style="text-align:center;padding:40px;color:#999">لا يوجد عملاء</div>';return;}
+let html='<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th></tr></thead><tbody>';
+data.forEach(c=>{
+html+=`<tr><td><strong>${c.name}</strong></td><td>${c.phone||'-'}</td><td>${c.email||'-'}</td></tr>`;
+});
+html+='</tbody></table>';
+document.getElementById('clientsTable').innerHTML=html;
+}catch(err){console.error('❌ Error in loadClients:',err);}
+}
+
+async function loadInvestors(){
+try{
+const{data}=await supabase.from('investors').select('*').order('created_at',{ascending:false});
+if(!data||data.length===0){document.getElementById('investorsTable').innerHTML='<div style="text-align:center;padding:40px;color:#999">لا يوجد ممولين</div>';return;}
+const{data:opInvestors}=await supabase.from('operation_investors').select('*');
+const{data:transfers}=await supabase.from('transfers').select('*');
+const{data:ops}=await supabase.from('operations').select('id,status');
+let html='<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>الكلي</th><th>المستثمر</th><th>المُرجع</th><th>المتبقي</th><th>أرباح مستحقة</th><th>الرصيد</th></tr></thead><tbody>';
+data.forEach(inv=>{
+const myContribs=opInvestors?.filter(oi=>oi.investor_id===inv.id)||[];
+const totalCapital=myContribs.reduce((s,c)=>s+parseFloat(c.contribution||0),0);
+const workingCapital=myContribs.filter(c=>{const op=ops?.find(o=>o.id===c.operation_id);return op&&(op.status==='active'||op.status==='draft');}).reduce((s,c)=>s+parseFloat(c.contribution||0),0);
+const capitalReturned=transfers?.filter(t=>t.investor_id===inv.id&&t.purpose==='capital_return').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+const capitalFromCompletedOps=totalCapital-workingCapital;
+const capitalPendingReturn=Math.max(0,capitalFromCompletedOps-capitalReturned);
+const totalProfit=myContribs.reduce((s,c)=>s+parseFloat(c.profit||0),0);
+const profitPaid=transfers?.filter(t=>t.investor_id===inv.id&&t.purpose==='profit_distribution').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+const outstandingProfit=Math.max(0,totalProfit-profitPaid);
+const currentBalance=capitalPendingReturn+outstandingProfit;
+html+=`<tr><td><strong>${inv.name}</strong></td><td>${inv.phone||'-'}</td><td>${formatMoney(totalCapital)}</td><td>${formatMoney(workingCapital)}</td><td>${formatMoney(capitalReturned)}</td><td>${formatMoney(capitalPendingReturn)}</td><td>${formatMoney(outstandingProfit)}</td><td><strong>${formatMoney(currentBalance)}</strong></td></tr>`;
+});
+html+='</tbody></table>';
+document.getElementById('investorsTable').innerHTML=html;
+}catch(err){console.error('❌ Error in loadInvestors:',err);}
+}
+
+async function loadOperations(){
+try{
+const{data}=await supabase.from('operations').select('*,clients(name)').order('created_at',{ascending:false});
+if(!data||data.length===0){document.getElementById('operationsTable').innerHTML='<div style="text-align:center;padding:40px;color:#999">لا يوجد عمليات</div>';return;}
+let html='<table><thead><tr><th>الاسم</th><th>العميل</th><th>المبلغ</th><th>الربح</th><th>الحالة</th></tr></thead><tbody>';
+data.forEach(o=>{
+html+=`<tr><td><strong>${o.name}</strong></td><td>${o.clients?.name||'-'}</td><td>${formatMoney(o.amount)}</td><td>${formatMoney(o.final_profit)}</td><td><span class="badge badge-${o.status}">${getStatusText(o.status)}</span></td></tr>`;
+});
+html+='</tbody></table>';
+document.getElementById('operationsTable').innerHTML=html;
+}catch(err){console.error('❌ Error in loadOperations:',err);}
+}
+
+async function loadTransfers(){
+try{
+const{data}=await supabase.from('transfers').select('*,operations(name),investors(name)').order('transfer_date',{ascending:false});
+if(!data||data.length===0){document.getElementById('transfersTable').innerHTML='<div style="text-align:center;padding:40px;color:#999">لا يوجد تحويلات</div>';return;}
+const purposeMap={client_funding:'تمويل',client_repayment:'سداد',capital_return:'إرجاع رأس مال',profit_distribution:'توزيع أرباح',settlement:'تسوية',additional_funding:'تمويل إضافي',other:'أخرى'};
+let html='<table><thead><tr><th>النوع</th><th>الغرض</th><th>العملية</th><th>الممول/العميل</th><th>المبلغ</th><th>التاريخ</th></tr></thead><tbody>';
+data.forEach(t=>{
+const typeText={company_to_client:'شركة→عميل',client_to_company:'عميل→شركة',company_to_investor:'شركة→ممول'}[t.type];
+const partyName=t.investor_id?t.investors?.name:'-';
+html+=`<tr><td>${typeText}</td><td>${purposeMap[t.purpose]||t.purpose}</td><td>${t.operations?.name||'-'}</td><td>${partyName||'-'}</td><td>${formatMoney(t.amount)}</td><td>${formatDate(t.transfer_date)}</td></tr>`;
+});
+html+='</tbody></table>';
+document.getElementById('transfersTable').innerHTML=html;
+}catch(err){console.error('❌ Error in loadTransfers:',err);}
+}
 </script>
 </body>
 </html>
