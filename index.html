@@ -97,6 +97,51 @@
     .toast.success { background: #28a745; }
     .toast.error { background: #dc3545; }
     .toast.warning { background: #ffc107; color: #000; }
+    
+    /* Debug Overlay */
+    #debug-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #ffebee;
+      border-bottom: 3px solid #f44336;
+      padding: 15px;
+      z-index: 999999;
+      font-family: sans-serif;
+      direction: rtl;
+      display: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    #debug-overlay h3 {
+      margin: 0 0 10px 0;
+      color: #c62828;
+      font-size: 16px;
+    }
+    #debug-logs {
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 13px;
+      color: #333;
+      line-height: 1.6;
+    }
+    #debug-logs div {
+      margin-bottom: 6px;
+      padding: 8px;
+      background: white;
+      border-right: 4px solid #f44336;
+      border-radius: 4px;
+    }
+    #debug-logs div.success {
+      border-right-color: #2e7d32;
+      background: #e8f5e9;
+    }
+    #debug-logs div.info {
+      border-right-color: #1565c0;
+      background: #e3f2fd;
+    }
     @media (max-width: 768px) {
       .form-row { grid-template-columns: 1fr; }
       .stats-grid { grid-template-columns: 1fr 1fr; }
@@ -152,7 +197,7 @@
 
 <div id="operationModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="operationModalTitle">إضافة عملية</h2><button class="close-btn" onclick="closeModal('operationModal')">&times;</button></div><form id="operationForm"><input type="hidden" id="operationId"><div class="form-row"><div class="form-group"><label>اسم العملية *</label><input type="text" id="opName" required></div><div class="form-group"><label>نوع العملية *</label><select id="opType" required><option value="financing">تمويل</option><option value="supply">توريد</option></select></div></div><div class="form-row"><div class="form-group"><label>العميل *</label><select id="opClient" required></select></div><div class="form-group"><label>قيمة التمويل *</label><input type="number" id="opAmount" step="0.01" required></div></div><div class="form-row"><div class="form-group"><label>الربح المتوقع</label><input type="number" id="opExpectedProfit" step="0.01"></div><div class="form-group"><label>الربح النهائي</label><input type="number" id="opFinalProfit" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>طريقة حساب ربح الشركة</label><select id="opCompanyProfitType"><option value="">بدون</option><option value="percentage">نسبة مئوية %</option><option value="fixed">رقم ثابت</option></select></div><div class="form-group"><label>القيمة</label><input type="number" id="opCompanyProfitValue" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>تاريخ البداية *</label><input type="date" id="opStartDate" required></div><div class="form-group"><label>عدد الأيام</label><input type="number" id="opDurationDays" min="1"></div></div><div class="form-row"><div class="form-group"><label>تاريخ النهاية</label><input type="date" id="opEndDate"></div><div class="form-group"><label>الحالة</label><select id="opStatus"><option value="draft">تحت الإنشاء</option><option value="active">نشطة</option><option value="completed">انتهت</option><option value="cancelled">ألغيت</option></select></div></div><div class="form-row full"><div class="form-group"><label>ملاحظات</label><textarea id="opNotes" rows="3"></textarea></div></div><button type="submit" class="btn btn-primary btn-block" id="opSaveBtn">حفظ</button></form></div></div>
 
-<div id="operationDetailsModal" class="modal"><div class="modal-content large"><div class="modal-header"><h2 id="opDetailsTitle">تفاصيل العملية</h2><button class="close-btn" onclick="closeModal('operationDetailsModal')">&times;</button></div><div class="op-summary-grid" id="opSummaryGrid"></div><div class="workflow-actions admin-only" id="workflowActions"><button class="btn btn-info" onclick="workflowAction('activate')">🚀 تفعيل</button><button class="btn btn-success" onclick="openWorkflowTransfer('client_repayment')">💰 سداد العميل</button><button class="btn btn-warning" onclick="openWorkflowTransfer('profit_distribution')"> توزيع أرباح</button><button class="btn btn-secondary" onclick="openWorkflowTransfer('capital_return')">🔄 إرجاع رأس مال</button><button class="btn btn-primary" onclick="workflowAction('complete')">✅ إنهاء</button></div><div class="tabs"><button class="tab active" onclick="showOpTab('investors', this)">الممولين</button><button class="tab" onclick="showOpTab('transfers', this)">التحويلات</button><button class="tab" onclick="showOpTab('timeline', this)">سجل الأحداث</button></div><div id="opTabInvestors" class="tab-content active"><div id="opInvestorsList"></div><button class="btn btn-success admin-only" onclick="openAddInvestorToOp()" style="margin-top:12px;">+ إضافة ممول</button></div><div id="opTabTransfers" class="tab-content"><div id="opTransfersList"></div><button class="btn btn-success admin-only" onclick="openAddTransferToOp()" style="margin-top:12px;">+ إضافة تحويل</button></div><div id="opTabTimeline" class="tab-content"><div id="opTimelineList"></div></div><div class="actions-cell admin-only" style="margin-top:20px; border-top:1px solid #eee; padding-top:15px;"><button class="btn btn-secondary" onclick="closeModal('operationDetailsModal'); editOperation(currentOpId);">✏️ تعديل</button></div></div></div>
+<div id="operationDetailsModal" class="modal"><div class="modal-content large"><div class="modal-header"><h2 id="opDetailsTitle">تفاصيل العملية</h2><button class="close-btn" onclick="closeModal('operationDetailsModal')">&times;</button></div><div class="op-summary-grid" id="opSummaryGrid"></div><div class="workflow-actions admin-only" id="workflowActions"><button class="btn btn-info" onclick="workflowAction('activate')"> تفعيل</button><button class="btn btn-success" onclick="openWorkflowTransfer('client_repayment')"> سداد العميل</button><button class="btn btn-warning" onclick="openWorkflowTransfer('profit_distribution')">📊 توزيع أرباح</button><button class="btn btn-secondary" onclick="openWorkflowTransfer('capital_return')">🔄 إرجاع رأس مال</button><button class="btn btn-primary" onclick="workflowAction('complete')">✅ إنهاء</button></div><div class="tabs"><button class="tab active" onclick="showOpTab('investors', this)">الممولين</button><button class="tab" onclick="showOpTab('transfers', this)">التحويلات</button><button class="tab" onclick="showOpTab('timeline', this)">سجل الأحداث</button></div><div id="opTabInvestors" class="tab-content active"><div id="opInvestorsList"></div><button class="btn btn-success admin-only" onclick="openAddInvestorToOp()" style="margin-top:12px;">+ إضافة ممول</button></div><div id="opTabTransfers" class="tab-content"><div id="opTransfersList"></div><button class="btn btn-success admin-only" onclick="openAddTransferToOp()" style="margin-top:12px;">+ إضافة تحويل</button></div><div id="opTabTimeline" class="tab-content"><div id="opTimelineList"></div></div><div class="actions-cell admin-only" style="margin-top:20px; border-top:1px solid #eee; padding-top:15px;"><button class="btn btn-secondary" onclick="closeModal('operationDetailsModal'); editOperation(currentOpId);">✏️ تعديل</button></div></div></div>
 
 <div id="addInvestorToOpModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة ممول للعملية</h2><button class="close-btn" onclick="closeModal('addInvestorToOpModal')">&times;</button></div><div id="opInvestorValidationWarning"></div><form id="addInvestorToOpForm"><div class="form-group"><label>اختر الممول *</label><select id="newOpInvestorId" required></select></div><div class="form-row"><div class="form-group"><label>المساهمة *</label><input type="number" id="newOpInvestorContribution" step="0.01" required oninput="validateOpInvestorInputs()"></div><div class="form-group"><label>الربح</label><input type="number" id="newOpInvestorProfit" step="0.01" oninput="validateOpInvestorInputs()"></div></div><button type="submit" class="btn btn-primary btn-block" id="addInvSaveBtn">إضافة</button></form></div></div>
 
@@ -166,31 +211,118 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- Debug Overlay -->
+<div id="debug-overlay">
+  <h3>🚨 تقرير الحالة التشخيصي:</h3>
+  <div id="debug-logs"></div>
+  <button onclick="document.getElementById('debug-overlay').style.display='none'" style="margin-top:10px; padding:8px 20px; background:#f44336; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">إخفاء التقرير</button>
+</div>
+
 <script>
+// ==========================================
+// DEBUG SYSTEM - Must be first
+// ==========================================
+(function() {
+  const logDiv = document.getElementById('debug-logs');
+  const overlay = document.getElementById('debug-overlay');
+  
+  function addLog(msg, type = 'error') {
+    if (!overlay || !logDiv) return;
+    overlay.style.display = 'block';
+    const time = new Date().toLocaleTimeString('ar-EG');
+    const color = type === 'error' ? '#f44336' : (type === 'success' ? '#2e7d32' : '#1565c0');
+    const icon = type === 'error' ? '❌' : (type === 'success' ? '✅' : 'ℹ️');
+    const div = document.createElement('div');
+    div.className = type;
+    div.style.borderRightColor = color;
+    div.innerHTML = `<strong>${icon} [${time}]</strong> ${msg}`;
+    logDiv.appendChild(div);
+  }
+
+  // Intercept all JavaScript errors
+  window.onerror = function(message, source, lineno, colno, error) {
+    addLog(`خطأ برمجي: ${message} (السطر: ${lineno})`, 'error');
+    return true;
+  };
+
+  // Intercept Console
+  const originalError = console.error;
+  console.error = function(...args) {
+    originalError.apply(console, args);
+    addLog(`Console Error: ${args.join(' ')}`, 'error');
+  };
+  
+  const originalLog = console.log;
+  console.log = function(...args) {
+    originalLog.apply(console, args);
+    addLog(`Log: ${args.join(' ')}`, 'info');
+  };
+
+  window.debugLog = addLog;
+})();
+
+// ==========================================
+// 1. Supabase Configuration
+// ==========================================
 const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
 
 let supabase;
 try {
-  console.log('window.supabase type:', typeof window.supabase);
-  console.log('window.supabase keys:', Object.keys(window.supabase));
+  if (typeof window.debugLog !== 'undefined') {
+    window.debugLog('=== بدء فحص Supabase ===', 'info');
+    window.debugLog(`SUPABASE_URL: ${SUPABASE_URL}`, 'info');
+    window.debugLog(`SUPABASE_ANON_KEY length: ${SUPABASE_ANON_KEY.length}`, 'info');
+    window.debugLog(`window.supabase type: ${typeof window.supabase}`, 'info');
+  }
+  
+  if (typeof window.supabase === 'undefined') {
+    throw new Error('مكتبة Supabase لم يتم تحميلها. تأكد من وجود <script src="...supabase-js..."> في بداية الملف');
+  }
+  
+  if (typeof window.supabase.createClient !== 'function') {
+    throw new Error('window.supabase.createClient ليس function. المفاتيح المتوفرة: ' + Object.keys(window.supabase).join(', '));
+  }
   
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   
-  console.log('supabase type:', typeof supabase);
-  console.log('supabase keys:', Object.keys(supabase));
-  console.log('supabase.from type:', typeof supabase.from);
-  
-  if (typeof supabase.from !== 'function') {
-    alert('️ مشكلة: supabase.from ليس function!\n\n' + 
-          'Type: ' + typeof supabase + '\n' +
-          'Keys: ' + Object.keys(supabase).join(', '));
-  } else {
-    console.log('✅ Supabase connected successfully');
+  if (typeof window.debugLog !== 'undefined') {
+    window.debugLog(`supabase type: ${typeof supabase}`, 'info');
+    window.debugLog(`supabase.from type: ${typeof supabase.from}`, 'info');
+    window.debugLog('✅ تم إنشاء Supabase client بنجاح', 'success');
   }
+  
+  // Test database connection
+  setTimeout(async () => {
+    try {
+      if (typeof supabase.from !== 'function') {
+        throw new Error(`supabase.from is not a function. Type: ${typeof supabase}. Keys: ${Object.keys(supabase).join(', ')}`);
+      }
+      
+      const { error } = await supabase.from('clients').select('count', { count: 'exact', head: true });
+      
+      if (error) {
+        if (typeof window.debugLog !== 'undefined') {
+          window.debugLog(` فشل الاتصال بقاعدة البيانات: ${error.message}`, 'error');
+        }
+      } else {
+        if (typeof window.debugLog !== 'undefined') {
+          window.debugLog('✅ الاتصال بقاعدة البيانات ناجح 100%!', 'success');
+        }
+      }
+    } catch (e) {
+      if (typeof window.debugLog !== 'undefined') {
+        window.debugLog(` استثناء أثناء الفحص: ${e.message}`, 'error');
+      }
+    }
+  }, 1500);
+  
 } catch (err) {
-  alert('❌ خطأ في إنشاء Supabase client: ' + err.message);
-  console.error('Error:', err);
+  if (typeof window.debugLog !== 'undefined') {
+    window.debugLog(`❌ خطأ في إنشاء Supabase client: ${err.message}`, 'error');
+  } else {
+    alert('خطأ في إنشاء Supabase client: ' + err.message);
+  }
 }
 
 let currentUser = null;
@@ -920,80 +1052,5 @@ function confirmDeleteTransfer(tId, opId, amount, purpose) {
   });
 }
 </script>
-<!-- ========================================== -->
-<!-- بداية كود التشخيص الذاتي للأخطاء -->
-<!-- ========================================== -->
-<div id="debug-overlay" style="position:fixed; top:0; left:0; right:0; background:#ffebee; border-bottom:3px solid #f44336; padding:15px; z-index:999999; font-family:sans-serif; direction:rtl; display:none; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-  <h3 style="margin:0 0 10px 0; color:#c62828; font-size:16px;">🚨 تقرير الحالة التشخيصي:</h3>
-  <div id="debug-logs" style="max-height:250px; overflow-y:auto; font-size:13px; color:#333; line-height:1.6;"></div>
-  <button onclick="document.getElementById('debug-overlay').style.display='none'" style="margin-top:10px; padding:8px 20px; background:#f44336; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">إخفاء التقرير</button>
-</div>
-
-<script>
-(function() {
-  const logDiv = document.getElementById('debug-logs');
-  const overlay = document.getElementById('debug-overlay');
-  
-  function addLog(msg, type = 'error') {
-    overlay.style.display = 'block';
-    const time = new Date().toLocaleTimeString('ar-EG');
-    const color = type === 'error' ? '#f44336' : (type === 'success' ? '#2e7d32' : '#1565c0');
-    const icon = type === 'error' ? '❌' : (type === 'success' ? '✅' : 'ℹ️');
-    logDiv.innerHTML += `<div style="margin-bottom:6px; padding:8px; background:white; border-right:4px solid ${color}; border-radius:4px;"><strong>${icon} [${time}]</strong> ${msg}</div>`;
-  }
-
-  // 1. اعتراض جميع أخطاء الجافاسكريبت المخفية
-  window.onerror = function(message, source, lineno, colno, error) {
-    addLog(`خطأ برمجي: ${message} (السطر: ${lineno})`, 'error');
-    return true;
-  };
-
-  // 2. اعتراض رسائل Console
-  const originalError = console.error;
-  console.error = function(...args) {
-    originalError.apply(console, args);
-    addLog(`Console Error: ${args.join(' ')}`, 'error');
-  };
-  
-  const originalLog = console.log;
-  console.log = function(...args) {
-    originalLog.apply(console, args);
-    addLog(`Log: ${args.join(' ')}`, 'info');
-  };
-
-  // 3. فحص وجود مفاتيح Supabase
-  if (typeof SUPABASE_URL === 'undefined' || typeof SUPABASE_ANON_KEY === 'undefined') {
-    addLog('كارثة: متغيرات SUPABASE_URL أو SUPABASE_ANON_KEY غير موجودة! هذا يعني أن الكود لم ينسخ بالكامل أو تم حذفه.', 'error');
-  } else {
-    addLog(`تم العثور على مفاتيح Supabase. الرابط يبدأ بـ: ${SUPABASE_URL.substring(0, 25)}...`, 'success');
-  }
-
-  // 4. فحص تحميل مكتبة Supabase والاتصال
-  setTimeout(async () => {
-    try {
-      if (typeof window.supabase === 'undefined') {
-        addLog('مكتبة Supabase لم يتم تحميلها. تأكد من وجود وسم <script src="...supabase-js..."> في بداية الملف.', 'error');
-      } else if (typeof supabase === 'undefined') {
-        addLog('متغير supabase غير معرف. قد يكون هناك خطأ في سطر إنشاء العميل (createClient).', 'error');
-      } else {
-        addLog('مكتبة Supabase محملة بنجاح. جاري اختبار الاتصال...', 'info');
-        
-        // محاولة اتصال بسيطة للتحقق
-        const { error } = await supabase.from('clients').select('count', { count: 'exact', head: true });
-        if (error) {
-          addLog(`فشل الاتصال بقاعدة البيانات: ${error.message}. تأكد من صحة المفاتيح أو أن الجداول موجودة.`, 'error');
-        } else {
-          addLog('الاتصال بـ Supabase ناجح 100%! إذا كانت الصفحة لا تزال لا تعمل، فالمشكلة في متصفح الهاتف (Cache).', 'success');
-        }
-      }
-    } catch (e) {
-      addLog(`استثناء غير متوقع أثناء الفحص: ${e.message}`, 'error');
-    }
-  }, 1500);
-})();
-</script>
-<!-- ========================================== -->
-<!-- نهاية كود التشخيص الذاتي للأخطاء -->
-<!-- ========================================== -->
 </body>
 </html>
