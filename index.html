@@ -2,246 +2,151 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>اختبار شامل - نظام التمويل</title>
+<title>اختبار مع Console Logs</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<script>
-// 1. كود استكشاف الأخطاء كما طلبت
-window.onerror = function(message, source, line, col, error) {
-    alert(
-        "ERROR\n\n" +
-        message +
-        "\n\nLine: " + line +
-        "\nColumn: " + col
-    );
-    return true;
-};
-
-// 2. رسالة فورية عند فتح الصفحة
-window.addEventListener('DOMContentLoaded', function() {
-    log("✅ تم تحميل الصفحة بنجاح", "success");
-    log("✅ JavaScript يعمل بشكل صحيح", "success");
-});
-</script>
-
 <style>
-body { font-family: Arial; padding: 20px; background: #f0f2f5; margin: 0; }
-.screen { display: none; padding: 20px; }
-.screen.active { display: block; }
-.login-box { max-width: 400px; margin: 50px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-.dashboard-box { max-width: 800px; margin: 20px auto; background: #e8f5e9; padding: 30px; border-radius: 12px; border: 3px solid #28a745; }
-input { width: 100%; padding: 12px; margin: 8px 0; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-button { width: 100%; padding: 14px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-button:hover { background: #5568d3; }
-#logBox { max-width: 800px; margin: 20px auto; background: white; padding: 15px; border-radius: 8px; border: 2px solid #333; max-height: 300px; overflow-y: auto; }
-.log-item { padding: 8px; margin: 5px 0; border-radius: 5px; border-right: 4px solid #ccc; }
-.log-success { background: #e8f5e9; border-right-color: #28a745; color: #155724; }
-.log-error { background: #ffebee; border-right-color: #dc3545; color: #c62828; font-weight: bold; }
-.log-info { background: #e3f2fd; border-right-color: #2196f3; color: #0d47a1; }
-h1 { text-align: center; color: #333; }
+body { font-family: Arial; padding: 20px; background: #f0f2f5; }
+#console-output { background: #000; color: #0f0; padding: 15px; margin: 20px 0; border-radius: 8px; font-family: monospace; max-height: 400px; overflow-y: auto; }
+.log-line { margin: 5px 0; padding: 5px; border-right: 3px solid #0f0; }
+.error { color: #f00; border-right-color: #f00; }
+.success { color: #0f0; border-right-color: #0f0; }
+.login-box { max-width: 400px; margin: 50px auto; background: white; padding: 30px; border-radius: 12px; }
+input { width: 100%; padding: 10px; margin: 8px 0; border: 2px solid #ddd; border-radius: 8px; }
+button { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
 </style>
 </head>
 <body>
 
-<!-- شاشة تسجيل الدخول -->
-<div id="loginScreen" class="screen active">
-    <div class="login-box">
-        <h1>🔐 تسجيل الدخول</h1>
-        <input type="email" id="email" placeholder="البريد الإلكتروني">
-        <input type="password" id="password" placeholder="كلمة المرور">
-        <button onclick="doLogin()">تسجيل الدخول</button>
-    </div>
+<div id="loginScreen" class="login-box">
+    <h1 style="text-align:center">نظام إدارة التمويل</h1>
+    <input type="email" id="email" placeholder="البريد الإلكتروني">
+    <input type="password" id="password" placeholder="كلمة المرور">
+    <button onclick="testLogin()">تسجيل الدخول</button>
 </div>
 
-<!-- شاشة Dashboard (تظهر بعد نجاح الدخول) -->
-<div id="dashboardScreen" class="screen">
-    <div class="dashboard-box">
-        <h1>✅ تم تسجيل الدخول بنجاح!</h1>
-        <p style="text-align: center; font-size: 18px;">مرحباً بك في نظام إدارة التمويل</p>
-        <p style="text-align: center; font-size: 20px; font-weight: bold;" id="userEmail"></p>
-        <p style="text-align: center; font-size: 16px;" id="userRole"></p>
-        <button onclick="doLogout()" style="background: #dc3545; max-width: 200px; margin: 20px auto; display: block;">خروج</button>
-    </div>
+<div id="dashboard" style="display:none; max-width:800px; margin:50px auto; background:#e8f5e9; padding:30px; border-radius:12px;">
+    <h1 style="color:#28a745; text-align:center">✅ تم تسجيل الدخول!</h1>
+    <p id="userInfo" style="text-align:center"></p>
 </div>
 
-<!-- صندوق سجل الأحداث -->
-<div id="logBox">
-    <h3 style="margin-top: 0;">📋 سجل الأحداث:</h3>
-    <div id="logs"></div>
-</div>
+<h3>📋 Console Output:</h3>
+<div id="console-output"></div>
 
 <script>
-// ============================================
-// إعدادات Supabase
-// ============================================
 const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
 
-let supabase;
-let currentUser = null;
-let userRole = 'admin';
-
-// ============================================
-// دالة تسجيل الأحداث
-// ============================================
 function log(msg, type='info') {
-    const logsDiv = document.getElementById('logs');
-    const div = document.createElement('div');
-    div.className = 'log-item log-' + type;
+    const div = document.getElementById('console-output');
+    const line = document.createElement('div');
+    line.className = 'log-line ' + type;
     const time = new Date().toLocaleTimeString('ar-EG');
-    div.innerHTML = '<strong>[' + time + ']</strong> ' + msg;
-    logsDiv.appendChild(div);
-    console.log('[' + type + '] ' + msg);
+    line.textContent = '[' + time + '] ' + msg;
+    div.appendChild(line);
+    console.log(msg);
+    div.scrollTop = div.scrollHeight;
 }
 
-// ============================================
-// تهيئة Supabase
-// ============================================
-try {
-    log('جاري إنشاء Supabase Client...', 'info');
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    log('✅ تم إنشاء Supabase Client بنجاح', 'success');
-} catch (err) {
-    log('❌ فشل إنشاء Supabase: ' + err.message, 'error');
-    alert('خطأ في إنشاء Supabase: ' + err.message);
-}
+log('🚀 Script Started', 'success');
 
-// ============================================
-// دالة تسجيل الدخول
-// ============================================
-async function doLogin() {
-    log('🔘 تم الضغط على زر تسجيل الدخول', 'info');
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+log('✅ Supabase Client Created', 'success');
+
+async function testLogin() {
+    log('🔘 Button Clicked', 'info');
     
-    const email = document.getElementById('email').value.trim();
+    const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     
-    if (!email || !password) {
-        log('⚠️ يرجى إدخال البريد وكلمة المرور', 'error');
-        alert('️ يرجى إدخال البريد الإلكتروني وكلمة المرور');
-        return;
-    }
-    
-    log('📧 محاولة تسجيل الدخول: ' + email, 'info');
+    log('📧 Email: ' + email, 'info');
     
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
+        log('1️⃣ Calling signInWithPassword...', 'info');
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         
         if (error) {
-            log('❌ فشل تسجيل الدخول: ' + error.message, 'error');
-            alert('❌ فشل تسجيل الدخول:\n\n' + error.message);
+            log('❌ Login Failed: ' + error.message, 'error');
+            alert('فشل: ' + error.message);
             return;
         }
         
-        log('✅ تم تسجيل الدخول بنجاح!', 'success');
-        log('User ID: ' + data.user.id, 'success');
-        log('Email: ' + data.user.email, 'success');
+        log('2️ Login Success! User: ' + data.user.email, 'success');
         
-        currentUser = data.user;
+        log('3️⃣ Calling loadUserProfile...', 'info');
+        await loadUserProfile();
+        log('4️⃣ Profile Loaded', 'success');
         
-        // الخطوة التالية: قراءة user_profiles
-        log(' جاري قراءة جدول user_profiles...', 'info');
-        
-        try {
-            const { data: profile, error: profileError } = await supabase
-                .from('user_profiles')
-                .select('role, entity_id')
-                .eq('id', currentUser.id)
-                .maybeSingle();
-            
-            if (profileError) {
-                log('️ خطأ في قراءة profile: ' + profileError.message, 'error');
-                log(' سيتم اعتبارك admin تلقائياً', 'info');
-                userRole = 'admin';
-            } else if (profile) {
-                log('✅ تم قراءة profile بنجاح', 'success');
-                log('Role: ' + profile.role, 'success');
-                userRole = profile.role || 'admin';
-            } else {
-                log('⚠️ لم يتم العثور على profile - admin افتراضياً', 'info');
-                userRole = 'admin';
-            }
-        } catch (e) {
-            log('❌ استثناء في قراءة profile: ' + e.message, 'error');
-            userRole = 'admin';
-        }
-        
-        // الانتقال إلى Dashboard
-        log('🔄 جاري الانتقال إلى Dashboard...', 'info');
-        
-        try {
-            showDashboard();
-            log('✅ تم الانتقال إلى Dashboard بنجاح!', 'success');
-        } catch (e) {
-            log('❌ فشل الانتقال: ' + e.message, 'error');
-            alert('فشل الانتقال إلى Dashboard: ' + e.message);
-        }
+        log('5️⃣ Calling showApp...', 'info');
+        showApp();
+        log('6️⃣ App Shown', 'success');
         
     } catch (err) {
-        log('❌ استثناء غير متوقع: ' + err.message, 'error');
-        alert('خطأ غير متوقع: ' + err.message);
+        log('❌ Exception: ' + err.message, 'error');
     }
 }
 
-// ============================================
-// عرض Dashboard
-// ============================================
-function showDashboard() {
-    log('🎨 إخفاء شاشة تسجيل الدخول...', 'info');
-    document.getElementById('loginScreen').classList.remove('active');
-    
-    log('🎨 إظهار شاشة Dashboard...', 'info');
-    document.getElementById('dashboardScreen').classList.add('active');
-    
-    document.getElementById('userEmail').textContent = 'الإيميل: ' + currentUser.email;
-    document.getElementById('userRole').textContent = 'الصلاحية: ' + userRole;
-    
-    log('✅ Dashboard معروض الآن!', 'success');
-}
-
-// ============================================
-// تسجيل الخروج
-// ============================================
-async function doLogout() {
-    log(' تسجيل الخروج...', 'info');
-    await supabase.auth.signOut();
-    location.reload();
-}
-
-// ============================================
-// التحقق من الجلسة الحالية عند فتح الصفحة
-// ============================================
-log(' التحقق من وجود جلسة حالية...', 'info');
-supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session) {
-        log('✅ تم العثور على جلسة حالية', 'success');
-        currentUser = session.user;
-        loadProfileAndShow();
-    } else {
-        log('ℹ️ لا توجد جلسة حالية - يجب تسجيل الدخول', 'info');
-    }
-});
-
-async function loadProfileAndShow() {
+async function loadUserProfile() {
+    log('  ↳ Reading user_profiles table...', 'info');
     try {
-        const { data: profile } = await supabase
+        const { data, error } = await supabase
             .from('user_profiles')
             .select('role')
             .eq('id', currentUser.id)
             .maybeSingle();
         
-        userRole = profile?.role || 'admin';
-        showDashboard();
+        if (error) {
+            log('  ↳ Profile Error: ' + error.message, 'error');
+        } else {
+            log('  ↳ Role: ' + (data?.role || 'admin'), 'success');
+        }
     } catch (e) {
-        log('⚠️ خطأ في تحميل profile: ' + e.message, 'error');
-        showDashboard();
+        log('  ↳ Profile Exception: ' + e.message, 'error');
     }
 }
 
-log('✅ النظام جاهز تماماً', 'success');
-</script>
+function showApp() {
+    log('  ↳ Hiding login screen...', 'info');
+    document.getElementById('loginScreen').style.display = 'none';
+    
+    log('  ↳ Showing dashboard...', 'info');
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('userInfo').textContent = currentUser.email;
+    
+    log('  ↳ Dashboard visible!', 'success');
+    
+    // NOW TEST loadDashboard
+    log('7️⃣ Testing loadDashboard...', 'info');
+    testLoadDashboard();
+}
 
+async function testLoadDashboard() {
+    try {
+        log('  ↳ 1. Fetching operations...', 'info');
+        const ops = await supabase.from('operations').select('*');
+        log('  ↳ 1. Operations: ' + (ops.error ? 'ERROR: ' + ops.error.message : 'OK (' + ops.data.length + ')'), ops.error ? 'error' : 'success');
+        
+        log('  ↳ 2. Fetching operation_investors...', 'info');
+        const opInv = await supabase.from('operation_investors').select('*');
+        log('  ↳ 2. OpInvestors: ' + (opInv.error ? 'ERROR: ' + opInv.error.message : 'OK (' + opInv.data.length + ')'), opInv.error ? 'error' : 'success');
+        
+        log('  ↳ 3. Fetching transfers...', 'info');
+        const trans = await supabase.from('transfers').select('*');
+        log('  ↳ 3. Transfers: ' + (trans.error ? 'ERROR: ' + trans.error.message : 'OK (' + trans.data.length + ')'), trans.error ? 'error' : 'success');
+        
+        log('  ↳ 4. Fetching investors...', 'info');
+        const inv = await supabase.from('investors').select('*');
+        log('  ↳ 4. Investors: ' + (inv.error ? 'ERROR: ' + inv.error.message : 'OK (' + inv.data.length + ')'), inv.error ? 'error' : 'success');
+        
+        log('✅ ALL QUERIES COMPLETED!', 'success');
+        
+    } catch (e) {
+        log('❌ Dashboard Exception: ' + e.message, 'error');
+    }
+}
+
+let currentUser = null;
+
+log('✅ System Ready - Enter credentials and click Login', 'success');
+</script>
 </body>
 </html>
