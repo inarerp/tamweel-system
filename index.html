@@ -1,147 +1,138 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>تتبع الأخطاء</title>
-<style>
-body { font-family: Arial; padding: 20px; background: #f0f0f0; }
-.log { background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-left: 4px solid #ccc; }
-.error { border-left-color: red; background: #ffebee; color: #c62828; }
-.success { border-left-color: green; background: #e8f5e9; color: #2e7d32; }
-.warning { border-left-color: orange; background: #fff3e0; color: #e65100; }
-.info { border-left-color: blue; background: #e3f2fd; color: #1565c0; }
-input { padding: 10px; width: 300px; margin: 5px; display: block; }
-button { padding: 10px 30px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة التمويل - تتبع الأخطاء</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; direction: rtl; }
+        .log { background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-right: 4px solid #ccc; }
+        .error { border-right-color: red; background: #ffebee; color: #c62828; }
+        .success { border-right-color: green; background: #e8f5e9; color: #2e7d32; }
+        .warning { border-right-color: orange; background: #fff3e0; color: #e65100; }
+        .info { border-right-color: blue; background: #e3f2fd; color: #1565c0; }
+        input { padding: 10px; width: 300px; margin: 5px 0; display: block; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 30px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; }
+        button:hover { background: #5568d3; }
+        h1, h2 { color: #333; }
+    </style>
 </head>
 <body>
 
-<h1>🔍 نظام تتبع الأخطاء</h1>
-
-<h2>📝 بيانات تسجيل الدخول:</h2>
-<input type="email" id="email" placeholder="البريد الإلكتروني">
-<input type="password" id="password" placeholder="كلمة المرور">
-<button onclick="testLogin()">🧪 اختبار تسجيل الدخول</button>
-
-<h2>📋 سجل الأخطاء:</h2>
-<div id="logs"></div>
-
-<script>
-// ============================================
-// نظام التتبع الشامل
-// ============================================
-
-const logsDiv = document.getElementById('logs');
-
-function addLog(msg, type='info') {
-    const div = document.createElement('div');
-    div.className = 'log ' + type;
-    const time = new Date().toLocaleTimeString('ar-EG');
-    div.innerHTML = `<strong>[${time}]</strong> ${msg}`;
-    logsDiv.appendChild(div);
-    console.log(msg);
-}
-
-// اعتراض جميع الأخطاء
-window.onerror = function(message, source, lineno, colno, error) {
-    addLog(`❌ خطأ JavaScript: ${message} (السطر: ${lineno})`, 'error');
-    return true;
-};
-
-// اعتراض console.error
-const originalError = console.error;
-console.error = function(...args) {
-    originalError.apply(console, args);
-    addLog(`❌ Console Error: ${args.join(' ')}`, 'error');
-};
-
-// ============================================
-// بدء التتبع
-// ============================================
-
-addLog(' بدء تحميل الصفحة...', 'info');
-
-try {
-    addLog('1️ جاري تحميل مكتبة Supabase...', 'info');
+    <h1>🔍 نظام تتبع الأخطاء</h1>
     
-    if (typeof window.supabase === 'undefined') {
-        addLog('❌ مكتبة Supabase لم يتم تحميلها!', 'error');
-    } else {
-        addLog('✅ مكتبة Supabase تم تحميلها بنجاح', 'success');
+    <h2>📝 بيانات تسجيل الدخول:</h2>
+    <input type="email" id="email" placeholder="البريد الإلكتروني">
+    <input type="password" id="password" placeholder="كلمة المرور">
+    <button onclick="testLogin()">🧪 اختبار تسجيل الدخول</button>
+    
+    <h2>📋 سجل الأخطاء:</h2>
+    <div id="logs"></div>
+
+    <script>
+        const logsDiv = document.getElementById('logs');
         
-        const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
-        
-        addLog('2️ جاري إنشاء Supabase Client...', 'info');
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        addLog('✅ تم إنشاء Client بنجاح', 'success');
-        
-        // دالة تسجيل الدخول
-        window.testLogin = async function() {
-            addLog('🔐 بدء اختبار تسجيل الدخول...', 'info');
+        function addLog(msg, type='info') {
+            const div = document.createElement('div');
+            div.className = 'log ' + type;
+            const time = new Date().toLocaleTimeString('ar-EG');
+            div.innerHTML = '<strong>[' + time + ']</strong> ' + msg;
+            logsDiv.appendChild(div);
+            console.log(msg);
+        }
+
+        window.onerror = function(message, source, lineno, colno, error) {
+            addLog('❌ خطأ JavaScript: ' + message + ' (السطر: ' + lineno + ')', 'error');
+            return true;
+        };
+
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog('❌ Console Error: ' + args.join(' '), 'error');
+        };
+
+        addLog('🚀 بدء تحميل الصفحة...', 'info');
+
+        try {
+            addLog('1️⃣ جاري تحميل مكتبة Supabase...', 'info');
             
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            if (!email || !password) {
-                addLog('️ يرجى إدخال البريد الإلكتروني وكلمة المرور', 'warning');
-                return;
-            }
-            
-            addLog(`3️⃣ محاولة تسجيل الدخول بـ: ${email}`, 'info');
-            
-            try {
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
+            if (typeof window.supabase === 'undefined') {
+                addLog('❌ مكتبة Supabase لم يتم تحميلها!', 'error');
+            } else {
+                addLog('✅ مكتبة Supabase تم تحميلها بنجاح', 'success');
                 
-                if (error) {
-                    addLog(`❌ فشل تسجيل الدخول!`, 'error');
-                    addLog(`الرسالة: ${error.message}`, 'error');
-                    if (error.code) addLog(`الكود: ${error.code}`, 'error');
-                    if (error.status) addLog(`الحالة: ${error.status}`, 'error');
-                } else {
-                    addLog('✅ تم تسجيل الدخول بنجاح!', 'success');
-                    addLog(`User ID: ${data.user.id}`, 'success');
-                    addLog(`Email: ${data.user.email}`, 'success');
+                const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
+                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
+                
+                addLog('2️⃣ جاري إنشاء Supabase Client...', 'info');
+                
+                const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                addLog('✅ تم إنشاء Client بنجاح', 'success');
+                
+                window.testLogin = async function() {
+                    addLog(' بدء اختبار تسجيل الدخول...', 'info');
                     
-                    // اختبار قراءة جدول user_profiles
-                    addLog('4️⃣ جاري قراءة جدول user_profiles...', 'info');
+                    const email = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+                    
+                    if (!email || !password) {
+                        addLog('⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور', 'warning');
+                        return;
+                    }
+                    
+                    addLog('3️⃣ محاولة تسجيل الدخول بـ: ' + email, 'info');
                     
                     try {
-                        const { data: profile, error: profileError } = await supabase
-                            .from('user_profiles')
-                            .select('*')
-                            .eq('id', data.user.id)
-                            .single();
+                        const { data, error } = await supabase.auth.signInWithPassword({
+                            email: email,
+                            password: password
+                        });
                         
-                        if (profileError) {
-                            addLog(`❌ خطأ في قراءة user_profiles!`, 'error');
-                            addLog(`الرسالة: ${profileError.message}`, 'error');
-                            addLog('💡 الحل: نفّذ SQL Fix في Supabase', 'warning');
+                        if (error) {
+                            addLog('❌ فشل تسجيل الدخول!', 'error');
+                            addLog('الرسالة: ' + error.message, 'error');
+                            if (error.code) addLog('الكود: ' + error.code, 'error');
+                            if (error.status) addLog('الحالة: ' + error.status, 'error');
                         } else {
-                            addLog('✅ تم قراءة user_profiles بنجاح!', 'success');
-                            addLog(`Role: ${profile.role}`, 'success');
-                            addLog('🎉 كل شيء يعمل بشكل صحيح!', 'success');
+                            addLog('✅ تم تسجيل الدخول بنجاح!', 'success');
+                            addLog('User ID: ' + data.user.id, 'success');
+                            addLog('Email: ' + data.user.email, 'success');
+                            
+                            addLog('4️⃣ جاري قراءة جدول user_profiles...', 'info');
+                            
+                            try {
+                                const { data: profile, error: profileError } = await supabase
+                                    .from('user_profiles')
+                                    .select('*')
+                                    .eq('id', data.user.id)
+                                    .single();
+                                
+                                if (profileError) {
+                                    addLog('❌ خطأ في قراءة user_profiles!', 'error');
+                                    addLog('الرسالة: ' + profileError.message, 'error');
+                                    addLog('💡 الحل: نفّذ SQL Fix في Supabase', 'warning');
+                                } else {
+                                    addLog('✅ تم قراءة user_profiles بنجاح!', 'success');
+                                    addLog('Role: ' + profile.role, 'success');
+                                    addLog('🎉 كل شيء يعمل بشكل صحيح!', 'success');
+                                }
+                            } catch (e) {
+                                addLog('❌ استثناء في قراءة profile: ' + e.message, 'error');
+                            }
                         }
                     } catch (e) {
-                        addLog(`❌ استثناء في قراءة profile: ${e.message}`, 'error');
+                        addLog(' استثناء في تسجيل الدخول: ' + e.message, 'error');
                     }
-                }
-            } catch (e) {
-                addLog(`❌ استثناء في تسجيل الدخول: ${e.message}`, 'error');
+                };
+                
+                addLog('✅ النظام جاهز للاستخدام', 'success');
+                addLog(' أدخل البيانات واضغط على "اختبار تسجيل الدخول"', 'info');
             }
-        };
-        
-        addLog('✅ النظام جاهز للاستخدام', 'success');
-        addLog('📝 أدخل البيانات واضغط على "اختبار تسجيل الدخول"', 'info');
-    }
-} catch (e) {
-    addLog(`❌ خطأ عام: ${e.message}`, 'error');
-}
-
-</script>
+        } catch (e) {
+            addLog('❌ خطأ عام: ' + e.message, 'error');
+        }
+    </script>
 </body>
 </html>
