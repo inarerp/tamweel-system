@@ -27,7 +27,14 @@
         const SUPABASE_URL = "https://znkexrtkqzmsqnmzvxoq.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs";
 
-        const supabase = window.supabase.createClient(
+        if (!window.supabase) {
+    alert("❌ مكتبة Supabase لم تتحمل");
+    throw new Error("Supabase library not loaded");
+}
+
+alert("✅ مكتبة Supabase اتحملت");
+
+const supabase = window.supabase.createClient(
             SUPABASE_URL,
             SUPABASE_ANON_KEY
         );
