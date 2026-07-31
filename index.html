@@ -1,14 +1,110 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار تسجيل الدخول</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background: #f4f4f4; }
+        input { padding: 10px; width: 300px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 30px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background: #0056b3; }
+        #result { margin-top: 20px; text-align: right; max-width: 500px; margin-left: auto; margin-right: auto; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    </style>
+</head>
 <body>
 
-<h1>Hello</h1>
+    <h2>🔍 اختبار اتصال Supabase</h2>
+    
+    <input type="email" id="email" placeholder="البريد الإلكتروني"><br>
+    <input type="password" id="password" placeholder="كلمة المرور"><br>
+    <button onclick="test()">تسجيل الدخول</button>
+    
+    <div id="result"></div>
 
-<button onclick="alert('زر شغال')">اضغط هنا</button>
+    <script>
+        window.onerror = function(message, source, line, col, error) {
+            document.getElementById("result").innerHTML += `
+                <div style="background:#ffdddd;color:#900;padding:10px;margin:10px;border:2px solid red">
+                    <b>JavaScript Error</b><br>
+                    ${message}<br>
+                    Line: ${line}
+                </div>
+            `;
+        };
 
-<script>
-alert("JavaScript شغال");
-</script>
+        alert("بدأ تشغيل JavaScript");
 
+        const result = document.getElementById("result");
+
+        function log(msg, color="black"){
+            result.innerHTML += `<div style="margin:8px;color:${color};font-weight:bold">${msg}</div>`;
+        }
+
+        try {
+            log("1- بدء تحميل Supabase", "blue");
+
+            if(typeof window.supabase === "undefined"){
+                log("❌ مكتبة Supabase لم تتحمل", "red");
+                throw new Error("window.supabase is undefined");
+            }
+
+            log("✅ مكتبة Supabase اتحملت", "green");
+
+            const SUPABASE_URL = "https://znkexrtkqzmsqnmzvxoq.supabase.co";
+            const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs";
+
+            const supabase = window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_ANON_KEY
+            );
+
+            log("✅ Client تم إنشاؤه بنجاح", "green");
+
+            async function test() {
+                result.innerHTML = "";
+                log("🚀 بدأ الاختبار", "blue");
+
+                const email = document.getElementById("email").value;
+                const password = document.getElementById("password").value;
+
+                if(!email || !password) {
+                    log("⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور", "orange");
+                    return;
+                }
+
+                log("محاولة تسجيل الدخول...");
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email,
+                        password
+                    });
+
+                    if(error) {
+                        log("❌ Login Error", "red");
+                        log(error.message, "red");
+                        if(error.code) log("Code: " + error.code, "red");
+                        if(error.status) log("Status: " + error.status, "red");
+                        return;
+                    }
+
+                    log("✅ Login Success", "green");
+                    log("User : " + data.user.email);
+
+                } catch(e) {
+                    log("❌ Exception", "red");
+                    log(e.message, "red");
+                }
+            }
+
+            window.test = test;
+
+        } catch(e) {
+            log("❌ Fatal Error", "red");
+            log(e.message, "red");
+        }
+    </script>
 </body>
 </html>
