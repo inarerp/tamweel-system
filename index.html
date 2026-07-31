@@ -2,113 +2,108 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>اختبار الانتقال</title>
+<title>نظام إدارة التمويل</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-body { font-family: Arial; padding: 20px; }
-#loginScreen, #dashboard { padding: 20px; border: 2px solid #ccc; border-radius: 10px; margin: 10px 0; }
-#dashboard { display: none; background: #e8f5e9; }
-input { padding: 10px; margin: 5px; width: 300px; display: block; }
-button { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
-.log { background: white; padding: 10px; margin: 5px 0; border-radius: 5px; }
-.error { background: #ffebee; color: red; }
-.success { background: #e8f5e9; color: green; }
-</style>
 </head>
-<body>
+<body style="font-family: Arial; padding: 20px; background: #f0f2f5;">
 
-<h1>🧪 اختبار الانتقال بعد تسجيل الدخول</h1>
-
-<div id="loginScreen">
-    <h2>تسجيل الدخول</h2>
-    <input type="email" id="email" placeholder="البريد الإلكتروني">
-    <input type="password" id="password" placeholder="كلمة المرور">
-    <button onclick="testLogin()">تسجيل الدخول</button>
+<div id="loginScreen" style="max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <h1 style="text-align: center; color: #333; margin-bottom: 30px;">نظام إدارة التمويل</h1>
+    <div style="margin-bottom: 18px;">
+        <label style="display: block; margin-bottom: 6px; color: #555; font-weight: 600;">البريد الإلكتروني</label>
+        <input type="email" id="loginEmail" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 15px;">
+    </div>
+    <div style="margin-bottom: 18px;">
+        <label style="display: block; margin-bottom: 6px; color: #555; font-weight: 600;">كلمة المرور</label>
+        <input type="password" id="loginPassword" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 15px;">
+    </div>
+    <button onclick="handleLogin()" style="width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;">تسجيل الدخول</button>
+    <div id="errorMsg" style="margin-top: 15px; color: red; display: none;"></div>
 </div>
 
-<div id="dashboard">
-    <h2>✅ Dashboard - تم الدخول بنجاح!</h2>
-    <p>إذا كنت ترى هذه الصفحة، فالانتقال يعمل!</p>
-    <button onclick="logout()">خروج</button>
+<div id="dashboard" style="display: none; max-width: 800px; margin: 50px auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+    <h1 style="color: #28a745; text-align: center;">✅ تم تسجيل الدخول بنجاح!</h1>
+    <p style="text-align: center; font-size: 18px; margin: 20px 0;">مرحباً بك في نظام إدارة التمويل</p>
+    <p style="text-align: center;" id="userInfo"></p>
+    <button onclick="logout()" style="padding: 10px 30px; background: #6c757d; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; display: block; margin: 20px auto;">خروج</button>
 </div>
-
-<div id="logs"></div>
 
 <script>
-const logsDiv = document.getElementById('logs');
-
-function addLog(msg, type='info') {
-    const div = document.createElement('div');
-    div.className = 'log ' + type;
-    div.innerHTML = msg;
-    logsDiv.appendChild(div);
-    console.log(msg);
-}
+console.log('🚀 Starting...');
 
 const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-addLog('✅ Supabase Client تم إنشاؤه', 'success');
+let supabase;
+try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('✅ Supabase connected');
+} catch (err) {
+    console.error('❌ Error:', err);
+    alert('خطأ في الاتصال: ' + err.message);
+}
 
-async function testLogin() {
-    addLog('🔄 بدء تسجيل الدخول...', 'info');
+async function handleLogin() {
+    console.log(' Login clicked');
     
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorMsg = document.getElementById('errorMsg');
+    
+    if (!email || !password) {
+        errorMsg.textContent = '⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور';
+        errorMsg.style.display = 'block';
+        return;
+    }
+    
+    errorMsg.style.display = 'none';
+    console.log('📧 Email:', email);
     
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
         
         if (error) {
-            addLog('❌ فشل تسجيل الدخول: ' + error.message, 'error');
+            console.error('❌ Login error:', error);
+            errorMsg.textContent = '❌ فشل تسجيل الدخول: ' + error.message;
+            errorMsg.style.display = 'block';
             return;
         }
         
-        addLog('✅ تم تسجيل الدخول بنجاح!', 'success');
-        addLog('User ID: ' + data.user.id, 'success');
+        console.log('✅ Login success:', data.user.email);
+        showDashboard(data.user);
         
-        // محاولة قراءة profile
-        addLog(' جاري قراءة user_profiles...', 'info');
-        
-        try {
-            const { data: profile, error: profileError } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('id', data.user.id)
-                .single();
-            
-            if (profileError) {
-                addLog('⚠️ تحذير: ' + profileError.message, 'error');
-                addLog('سأعتبرك admin رغم الخطأ', 'success');
-            } else {
-                addLog('✅ Role: ' + profile.role, 'success');
-            }
-        } catch (e) {
-            addLog('⚠️ استثناء في profile: ' + e.message, 'error');
-        }
-        
-        // الانتقال إلى Dashboard
-        addLog('🔄 جاري الانتقال إلى Dashboard...', 'info');
-        
-        try {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            addLog('✅ تم الانتقال إلى Dashboard!', 'success');
-        } catch (e) {
-            addLog('❌ خطأ في الانتقال: ' + e.message, 'error');
-        }
-        
-    } catch (e) {
-        addLog('❌ استثناء: ' + e.message, 'error');
+    } catch (err) {
+        console.error('❌ Exception:', err);
+        errorMsg.textContent = '❌ خطأ: ' + err.message;
+        errorMsg.style.display = 'block';
     }
+}
+
+function showDashboard(user) {
+    console.log(' Showing dashboard...');
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('userInfo').textContent = 'المستخدم: ' + user.email;
+    console.log('✅ Dashboard shown');
 }
 
 async function logout() {
     await supabase.auth.signOut();
     location.reload();
 }
+
+// Check if already logged in
+supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+        console.log('✅ Already logged in');
+        showDashboard(session.user);
+    }
+});
+
+console.log('✅ System ready');
 </script>
 </body>
 </html>
