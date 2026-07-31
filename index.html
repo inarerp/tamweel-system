@@ -75,6 +75,7 @@ tr:hover{background:#f8f9fa}
 .summary-item{text-align:center}
 .summary-item label{display:block;font-size:12px;color:#666;margin-bottom:4px}
 .summary-item .val{font-size:16px;font-weight:700;color:#333}
+.summary-item .val a{color:#667eea;text-decoration:none}
 .workflow-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding:15px;background:#e9ecef;border-radius:12px}
 .workflow-actions .btn{flex:1;min-width:140px}
 .tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid #e0e0e0;overflow-x:auto}
@@ -97,12 +98,6 @@ tr:hover{background:#f8f9fa}
 .toast.success{background:#28a745}
 .toast.error{background:#dc3545}
 .toast.warning{background:#ffc107;color:#000}
-#debug-overlay{position:fixed;top:0;left:0;right:0;background:#ffebee;border-bottom:3px solid #f44336;padding:15px;z-index:999999;font-family:sans-serif;direction:rtl;display:none;box-shadow:0 4px 10px rgba(0,0,0,0.2);max-height:400px;overflow-y:auto}
-#debug-overlay h3{margin:0 0 10px 0;color:#c62828;font-size:16px}
-#debug-logs{max-height:300px;overflow-y:auto;font-size:13px;color:#333;line-height:1.6}
-#debug-logs div{margin-bottom:6px;padding:8px;background:white;border-right:4px solid #f44336;border-radius:4px}
-#debug-logs div.success{border-right-color:#2e7d32;background:#e8f5e9}
-#debug-logs div.info{border-right-color:#1565c0;background:#e3f2fd}
 @media(max-width:768px){.form-row{grid-template-columns:1fr}.stats-grid{grid-template-columns:1fr 1fr}.op-summary-grid{grid-template-columns:1fr 1fr}.header h1{font-size:18px}.nav button{padding:8px 14px;font-size:13px}table{font-size:13px}th,td{padding:10px 8px}}
 </style>
 </head>
@@ -148,9 +143,9 @@ tr:hover{background:#f8f9fa}
 
 <div id="investorModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="investorModalTitle">إضافة ممول</h2><button class="close-btn" onclick="closeModal('investorModal')">&times;</button></div><form id="investorForm"><input type="hidden" id="investorId"><div class="form-row"><div class="form-group"><label>الاسم *</label><input type="text" id="investorName" required></div><div class="form-group"><label>رقم الهاتف</label><input type="tel" id="investorPhone"></div></div><div class="form-row"><div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="investorEmail"></div><div class="form-group"><label>العنوان</label><input type="text" id="investorAddress"></div></div><div class="form-row full"><div class="form-group"><label>ملاحظات</label><textarea id="investorNotes" rows="3"></textarea></div></div><button type="submit" class="btn btn-primary btn-block" id="investorSaveBtn">حفظ</button></form></div></div>
 
-<div id="operationModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="operationModalTitle">إضافة عملية</h2><button class="close-btn" onclick="closeModal('operationModal')">&times;</button></div><form id="operationForm"><input type="hidden" id="operationId"><div class="form-row"><div class="form-group"><label>اسم العملية *</label><input type="text" id="opName" required></div><div class="form-group"><label>نوع العملية *</label><select id="opType" required><option value="financing">تمويل</option><option value="supply">توريد</option></select></div></div><div class="form-row"><div class="form-group"><label>العميل *</label><select id="opClient" required></select></div><div class="form-group"><label>قيمة التمويل *</label><input type="number" id="opAmount" step="0.01" required></div></div><div class="form-row"><div class="form-group"><label>الربح المتوقع</label><input type="number" id="opExpectedProfit" step="0.01"></div><div class="form-group"><label>الربح النهائي</label><input type="number" id="opFinalProfit" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>طريقة حساب ربح الشركة</label><select id="opCompanyProfitType"><option value="">بدون</option><option value="percentage">نسبة مئوية %</option><option value="fixed">رقم ثابت</option></select></div><div class="form-group"><label>القيمة</label><input type="number" id="opCompanyProfitValue" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>تاريخ البداية *</label><input type="date" id="opStartDate" required></div><div class="form-group"><label>عدد الأيام</label><input type="number" id="opDurationDays" min="1"></div></div><div class="form-row"><div class="form-group"><label>تاريخ النهاية</label><input type="date" id="opEndDate"></div><div class="form-group"><label>الحالة</label><select id="opStatus"><option value="draft">تحت الإنشاء</option><option value="active">نشطة</option><option value="completed">انتهت</option><option value="cancelled">ألغيت</option></select></div></div><div class="form-row full"><div class="form-group"><label>ملاحظات</label><textarea id="opNotes" rows="3"></textarea></div></div><button type="submit" class="btn btn-primary btn-block" id="opSaveBtn">حفظ</button></form></div></div>
+<div id="operationModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="operationModalTitle">إضافة عملية</h2><button class="close-btn" onclick="closeModal('operationModal')">&times;</button></div><form id="operationForm"><input type="hidden" id="operationId"><div class="form-row"><div class="form-group"><label>اسم العملية *</label><input type="text" id="opName" required></div><div class="form-group"><label>نوع العملية *</label><select id="opType" required><option value="financing">تمويل</option><option value="supply">توريد</option></select></div></div><div class="form-row"><div class="form-group"><label>العميل *</label><select id="opClient" required></select></div><div class="form-group"><label>قيمة التمويل *</label><input type="number" id="opAmount" step="0.01" required></div></div><div class="form-row"><div class="form-group"><label>الربح المتوقع</label><input type="number" id="opExpectedProfit" step="0.01"></div><div class="form-group"><label>الربح النهائي</label><input type="number" id="opFinalProfit" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>تاريخ اعتماد الربح</label><input type="date" id="opProfitApprovalDate"></div><div class="form-group"><label>رابط Google Drive</label><input type="url" id="opGoogleDriveUrl" placeholder="https://drive.google.com/..."></div></div><div class="form-row"><div class="form-group"><label>طريقة حساب ربح الشركة</label><select id="opCompanyProfitType"><option value="">بدون</option><option value="percentage">نسبة مئوية %</option><option value="fixed">رقم ثابت</option></select></div><div class="form-group"><label>القيمة</label><input type="number" id="opCompanyProfitValue" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>تاريخ البداية *</label><input type="date" id="opStartDate" required></div><div class="form-group"><label>عدد الأيام</label><input type="number" id="opDurationDays" min="1"></div></div><div class="form-row"><div class="form-group"><label>تاريخ النهاية</label><input type="date" id="opEndDate"></div><div class="form-group"><label>الحالة</label><select id="opStatus"><option value="draft">تحت الإنشاء</option><option value="active">نشطة</option><option value="completed">انتهت</option><option value="cancelled">ألغيت</option></select></div></div><div class="form-row full"><div class="form-group"><label>ملاحظات</label><textarea id="opNotes" rows="3"></textarea></div></div><button type="submit" class="btn btn-primary btn-block" id="opSaveBtn">حفظ</button></form></div></div>
 
-<div id="operationDetailsModal" class="modal"><div class="modal-content large"><div class="modal-header"><h2 id="opDetailsTitle">تفاصيل العملية</h2><button class="close-btn" onclick="closeModal('operationDetailsModal')">&times;</button></div><div class="op-summary-grid" id="opSummaryGrid"></div><div class="workflow-actions admin-only" id="workflowActions"><button class="btn btn-info" onclick="workflowAction('activate')"> تفعيل</button><button class="btn btn-success" onclick="openWorkflowTransfer('client_repayment')"> سداد العميل</button><button class="btn btn-warning" onclick="openWorkflowTransfer('profit_distribution')"> توزيع أرباح</button><button class="btn btn-secondary" onclick="openWorkflowTransfer('capital_return')">🔄 إرجاع رأس مال</button><button class="btn btn-primary" onclick="workflowAction('complete')">✅ إنهاء</button></div><div class="tabs"><button class="tab active" onclick="showOpTab('investors',this)">الممولين</button><button class="tab" onclick="showOpTab('transfers',this)">التحويلات</button><button class="tab" onclick="showOpTab('timeline',this)">سجل الأحداث</button></div><div id="opTabInvestors" class="tab-content active"><div id="opInvestorsList"></div><button class="btn btn-success admin-only" onclick="openAddInvestorToOp()" style="margin-top:12px;">+ إضافة ممول</button></div><div id="opTabTransfers" class="tab-content"><div id="opTransfersList"></div><button class="btn btn-success admin-only" onclick="openAddTransferToOp()" style="margin-top:12px;">+ إضافة تحويل</button></div><div id="opTabTimeline" class="tab-content"><div id="opTimelineList"></div></div><div class="actions-cell admin-only" style="margin-top:20px;border-top:1px solid #eee;padding-top:15px;"><button class="btn btn-secondary" onclick="closeModal('operationDetailsModal');editOperation(currentOpId);">✏️ تعديل</button></div></div></div>
+<div id="operationDetailsModal" class="modal"><div class="modal-content large"><div class="modal-header"><h2 id="opDetailsTitle">تفاصيل العملية</h2><button class="close-btn" onclick="closeModal('operationDetailsModal')">&times;</button></div><div class="op-summary-grid" id="opSummaryGrid"></div><div class="workflow-actions admin-only" id="workflowActions"><button class="btn btn-info" onclick="workflowAction('activate')">🚀 تفعيل</button><button class="btn btn-success" onclick="openWorkflowTransfer('client_repayment')">💰 سداد العميل</button><button class="btn btn-warning" onclick="openWorkflowTransfer('profit_distribution')">📊 توزيع أرباح</button><button class="btn btn-secondary" onclick="openWorkflowTransfer('capital_return')">🔄 إرجاع رأس مال</button><button class="btn btn-primary" onclick="workflowAction('complete')">✅ إنهاء</button></div><div class="tabs"><button class="tab active" onclick="showOpTab('investors',this)">الممولين</button><button class="tab" onclick="showOpTab('transfers',this)">التحويلات</button><button class="tab" onclick="showOpTab('timeline',this)">سجل الأحداث</button></div><div id="opTabInvestors" class="tab-content active"><div id="opInvestorsList"></div><button class="btn btn-success admin-only" onclick="openAddInvestorToOp()" style="margin-top:12px;">+ إضافة ممول</button></div><div id="opTabTransfers" class="tab-content"><div id="opTransfersList"></div><button class="btn btn-success admin-only" onclick="openAddTransferToOp()" style="margin-top:12px;">+ إضافة تحويل</button></div><div id="opTabTimeline" class="tab-content"><div id="opTimelineList"></div></div><div class="actions-cell admin-only" style="margin-top:20px;border-top:1px solid #eee;padding-top:15px;"><button class="btn btn-secondary" onclick="closeModal('operationDetailsModal');editOperation(currentOpId);">✏️ تعديل</button></div></div></div>
 
 <div id="addInvestorToOpModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة ممول للعملية</h2><button class="close-btn" onclick="closeModal('addInvestorToOpModal')">&times;</button></div><div id="opInvestorValidationWarning"></div><form id="addInvestorToOpForm"><div class="form-group"><label>اختر الممول *</label><select id="newOpInvestorId" required></select></div><div class="form-row"><div class="form-group"><label>المساهمة *</label><input type="number" id="newOpInvestorContribution" step="0.01" required oninput="validateOpInvestorInputs()"></div><div class="form-group"><label>الربح</label><input type="number" id="newOpInvestorProfit" step="0.01" oninput="validateOpInvestorInputs()"></div></div><button type="submit" class="btn btn-primary btn-block" id="addInvSaveBtn">إضافة</button></form></div></div>
 
@@ -164,95 +159,16 @@ tr:hover{background:#f8f9fa}
 
 <div id="toast" class="toast"></div>
 
-<div id="debug-overlay">
-<h3>🚨 تقرير الحالة التشخيصي:</h3>
-<div id="debug-logs"></div>
-<button onclick="document.getElementById('debug-overlay').style.display='none'" style="margin-top:10px;padding:8px 20px;background:#f44336;color:white;border:none;border-radius:6px;font-weight:bold;cursor:pointer;">إخفاء التقرير</button>
-</div>
-
 <script>
-(function(){
-const logDiv=document.getElementById('debug-logs');
-const overlay=document.getElementById('debug-overlay');
-function addLog(msg,type='error'){
-if(!overlay||!logDiv)return;
-overlay.style.display='block';
-const time=new Date().toLocaleTimeString('ar-EG');
-const color=type==='error'?'#f44336':(type==='success'?'#2e7d32':'#1565c0');
-const icon=type==='error'?'❌':(type==='success'?'✅':'ℹ️');
-const div=document.createElement('div');
-div.className=type;
-div.style.borderRightColor=color;
-div.innerHTML=`<strong>${icon} [${time}]</strong> ${msg}`;
-logDiv.appendChild(div);
-}
-window.onerror=function(message,source,lineno,colno,error){
-addLog(`خطأ برمجي: ${message} (السطر: ${lineno})`,'error');
-return true;
-};
-const originalError=console.error;
-console.error=function(...args){
-originalError.apply(console,args);
-addLog(`Console Error: ${args.join(' ')}`,'error');
-};
-const originalLog=console.log;
-console.log=function(...args){
-originalLog.apply(console,args);
-addLog(`Log: ${args.join(' ')}`,'info');
-};
-window.debugLog=addLog;
-})();
-
 const SUPABASE_URL='https://znkexrtkqzmsqnmzvxoq.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
 
 let supabase;
 try{
-if(typeof window.debugLog!=='undefined'){
-window.debugLog('=== بدء فحص Supabase ===','info');
-window.debugLog(`SUPABASE_URL: ${SUPABASE_URL}`,'info');
-window.debugLog(`SUPABASE_ANON_KEY length: ${SUPABASE_ANON_KEY.length}`,'info');
-window.debugLog(`window.supabase type: ${typeof window.supabase}`,'info');
-}
-if(typeof window.supabase==='undefined'){
-throw new Error('مكتبة Supabase لم يتم تحميلها');
-}
-if(typeof window.supabase.createClient!=='function'){
-throw new Error('window.supabase.createClient ليس function');
-}
 supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-if(typeof window.debugLog!=='undefined'){
-window.debugLog(`supabase type: ${typeof supabase}`,'info');
-window.debugLog(`supabase.from type: ${typeof supabase.from}`,'info');
-window.debugLog('✅ تم إنشاء Supabase client بنجاح','success');
-}
-setTimeout(async()=>{
-try{
-if(typeof supabase.from!=='function'){
-throw new Error(`supabase.from is not a function. Type: ${typeof supabase}`);
-}
-const{error}=await supabase.from('clients').select('count',{count:'exact',head:true});
-if(error){
-if(typeof window.debugLog!=='undefined'){
-window.debugLog(`❌ فشل الاتصال بقاعدة البيانات: ${error.message}`,'error');
-}
-}else{
-if(typeof window.debugLog!=='undefined'){
-window.debugLog('✅ الاتصال بقاعدة البيانات ناجح 100%!','success');
-}
-}
-}catch(e){
-if(typeof window.debugLog!=='undefined'){
-window.debugLog(`❌ استثناء أثناء الفحص: ${e.message}`,'error');
-}
-}
-},1500);
+console.log('✅ Supabase connected');
 }catch(err){
-if(typeof window.debugLog!=='undefined'){
-window.debugLog(`❌ خطأ في إنشاء Supabase client: ${err.message}`,'error');
-}else{
-alert('خطأ في إنشاء Supabase client: '+err.message);
-}
+alert('خطأ: '+err.message);
 }
 
 let currentUser=null;
@@ -321,6 +237,7 @@ e.preventDefault();
 setLoading('loginBtn',true);
 const email=document.getElementById('loginEmail').value;
 const password=document.getElementById('loginPassword').value;
+try{
 const{data,error}=await supabase.auth.signInWithPassword({email,password});
 setLoading('loginBtn',false);
 if(error){
@@ -330,11 +247,19 @@ return;
 currentUser=data.user;
 await loadUserProfile();
 showApp();
+}catch(err){
+setLoading('loginBtn',false);
+alert('خطأ: '+err.message);
+}
 });
 
 async function loadUserProfile(){
+try{
 const{data}=await supabase.from('user_profiles').select('role,entity_id').eq('id',currentUser.id).maybeSingle();
 userRole=data?.role||'admin';
+}catch(err){
+userRole='admin';
+}
 }
 
 async function logout(){
@@ -403,13 +328,16 @@ const workingCapital=myContribs.filter(c=>{
 const op=ops?.find(o=>o.id===c.operation_id);
 return op&&(op.status==='active'||op.status==='draft');
 }).reduce((s,c)=>s+parseFloat(c.contribution||0),0);
-availableInvestorCapital+=Math.max(0,totalCapital-workingCapital);
+const capitalReturned=transfers?.filter(t=>t.investor_id===inv.id&&t.purpose==='capital_return').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+const capitalFromCompletedOps=totalCapital-workingCapital;
+const capitalPendingReturn=Math.max(0,capitalFromCompletedOps-capitalReturned);
+availableInvestorCapital+=capitalPendingReturn;
 });
 document.getElementById('dashboardStats').innerHTML=`
 <div class="stat-card"><h3>التمويل النشط</h3><div class="value blue">${formatMoney(totalActiveFunding)}</div></div>
 <div class="stat-card"><h3>رأس المال outstanding</h3><div class="value orange">${formatMoney(totalOutstandingCapital)}</div></div>
 <div class="stat-card"><h3>أرباح مستحقة</h3><div class="value red">${formatMoney(totalOutstandingInvestorProfit)}</div></div>
-<div class="stat-card"><h3>رأس مال متاح</h3><div class="value green">${formatMoney(availableInvestorCapital)}</div></div>
+<div class="stat-card"><h3>رأس مال بانتظار الإرجاع</h3><div class="value green">${formatMoney(availableInvestorCapital)}</div></div>
 <div class="stat-card"><h3>تنتهي قريباً</h3><div class="value">${operationsEndingSoon}</div></div>
 <div class="stat-card"><h3>متأخرة</h3><div class="value red">${overdueOperations}</div></div>
 <div class="stat-card"><h3>مكتملة</h3><div class="value green">${completedOperations}</div></div>
@@ -469,25 +397,36 @@ showToast('تم الحذف');
 });
 }
 
+// ============ حساب أرصدة الممولين من التحويلات ============
+function calculateInvestorBalance(invId,opInvestors,transfers,ops){
+const myContribs=opInvestors?.filter(oi=>oi.investor_id===invId)||[];
+const totalCapital=myContribs.reduce((s,c)=>s+parseFloat(c.contribution||0),0);
+const workingCapital=myContribs.filter(c=>{
+const op=ops?.find(o=>o.id===c.operation_id);
+return op&&(op.status==='active'||op.status==='draft');
+}).reduce((s,c)=>s+parseFloat(c.contribution||0),0);
+const capitalReturned=transfers?.filter(t=>t.investor_id===invId&&t.purpose==='capital_return').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+const capitalFromCompletedOps=totalCapital-workingCapital;
+const capitalPendingReturn=Math.max(0,capitalFromCompletedOps-capitalReturned);
+const totalProfit=myContribs.reduce((s,c)=>s+parseFloat(c.profit||0),0);
+const profitPaid=transfers?.filter(t=>t.investor_id===invId&&t.purpose==='profit_distribution').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
+const outstandingProfit=Math.max(0,totalProfit-profitPaid);
+const currentBalance=capitalPendingReturn+outstandingProfit;
+return{totalCapital,workingCapital,capitalReturned,capitalPendingReturn,totalProfit,profitPaid,outstandingProfit,currentBalance,opsCount:myContribs.length};
+}
+
 async function loadInvestors(){
 const{data}=await supabase.from('investors').select('*').order('created_at',{ascending:false});
 if(!data||data.length===0){document.getElementById('investorsTable').innerHTML='<div class="empty-state">لا يوجد ممولين</div>';return;}
 const{data:opInvestors}=await supabase.from('operation_investors').select('*');
-const{data:transfers}=await supabase.from('transfers').select('*').eq('type','company_to_investor');
+const{data:transfers}=await supabase.from('transfers').select('*');
 const{data:ops}=await supabase.from('operations').select('id,status');
-let html='<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>الكلي</th><th>المستثمر</th><th>المتاح</th><th>المستحقة</th><th>الرصيد</th>';
+let html='<table><thead><tr><th>الاسم</th><th>الهاتف</th><th>الكلي</th><th>المستثمر</th><th>المُرجع</th><th>المتبقي</th><th>أرباح مستحقة</th><th>الرصيد</th>';
 if(userRole==='admin')html+='<th>الإجراءات</th>';
 html+='</tr></thead><tbody>';
 data.forEach(inv=>{
-const myContribs=opInvestors?.filter(oi=>oi.investor_id===inv.id)||[];
-const totalCapital=myContribs.reduce((s,c)=>s+parseFloat(c.contribution||0),0);
-const workingCapital=myContribs.filter(c=>{const op=ops?.find(o=>o.id===c.operation_id);return op&&(op.status==='active'||op.status==='draft');}).reduce((s,c)=>s+parseFloat(c.contribution||0),0);
-const availableCapital=Math.max(0,totalCapital-workingCapital);
-const totalProfit=myContribs.reduce((s,c)=>s+parseFloat(c.profit||0),0);
-const paidProfit=transfers?.filter(t=>t.investor_id===inv.id&&t.purpose==='profit_distribution').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
-const outstandingProfit=Math.max(0,totalProfit-paidProfit);
-const currentBalance=availableCapital+outstandingProfit;
-html+=`<tr><td><strong style="cursor:pointer;color:#667eea" onclick="openInvestorDetail('${inv.id}')">${inv.name}</strong></td><td>${inv.phone||'-'}</td><td>${formatMoney(totalCapital)}</td><td>${formatMoney(workingCapital)}</td><td>${formatMoney(availableCapital)}</td><td>${formatMoney(outstandingProfit)}</td><td><strong>${formatMoney(currentBalance)}</strong></td>`;
+const bal=calculateInvestorBalance(inv.id,opInvestors,transfers,ops);
+html+=`<tr><td><strong style="cursor:pointer;color:#667eea" onclick="openInvestorDetail('${inv.id}')">${inv.name}</strong></td><td>${inv.phone||'-'}</td><td>${formatMoney(bal.totalCapital)}</td><td>${formatMoney(bal.workingCapital)}</td><td>${formatMoney(bal.capitalReturned)}</td><td>${formatMoney(bal.capitalPendingReturn)}</td><td>${formatMoney(bal.outstandingProfit)}</td><td><strong>${formatMoney(bal.currentBalance)}</strong></td>`;
 if(userRole==='admin')html+=`<td class="actions-cell"><button class="btn btn-secondary btn-sm" onclick="editInvestor('${inv.id}')">تعديل</button><button class="btn btn-danger btn-sm" onclick="confirmDeleteInvestor('${inv.id}')">حذف</button></td>`;
 html+='</tr>';
 });
@@ -501,20 +440,16 @@ document.getElementById('investorDetailName').textContent='تفاصيل: '+inv.n
 const{data:opInvestors}=await supabase.from('operation_investors').select('*,operations(name,status,amount)').eq('investor_id',invId);
 const{data:transfers}=await supabase.from('transfers').select('*').eq('investor_id',invId);
 const{data:ops}=await supabase.from('operations').select('id,status');
-const totalCapital=opInvestors?.reduce((s,c)=>s+parseFloat(c.contribution||0),0)||0;
-const workingCapital=opInvestors?.filter(oi=>{const op=ops?.find(o=>o.id===oi.operation_id);return op&&(op.status==='active'||op.status==='draft');}).reduce((s,c)=>s+parseFloat(c.contribution||0),0)||0;
-const availableCapital=Math.max(0,totalCapital-workingCapital);
-const totalProfit=opInvestors?.reduce((s,c)=>s+parseFloat(c.profit||0),0)||0;
-const paidProfit=transfers?.filter(t=>t.purpose==='profit_distribution').reduce((s,t)=>s+parseFloat(t.amount||0),0)||0;
-const outstandingProfit=Math.max(0,totalProfit-paidProfit);
+const bal=calculateInvestorBalance(invId,opInvestors,transfers,ops);
 document.getElementById('investorStatsGrid').innerHTML=`
-<div class="summary-item"><label>الكلي</label><div class="val">${formatMoney(totalCapital)}</div></div>
-<div class="summary-item"><label>المستثمر</label><div class="val">${formatMoney(workingCapital)}</div></div>
-<div class="summary-item"><label>المتاح</label><div class="val green">${formatMoney(availableCapital)}</div></div>
-<div class="summary-item"><label>الأرباح</label><div class="val">${formatMoney(totalProfit)}</div></div>
-<div class="summary-item"><label>المدفوعة</label><div class="val">${formatMoney(paidProfit)}</div></div>
-<div class="summary-item"><label>المستحقة</label><div class="val red">${formatMoney(outstandingProfit)}</div></div>
-<div class="summary-item"><label>الرصيد</label><div class="val blue">${formatMoney(availableCapital+outstandingProfit)}</div></div>
+<div class="summary-item"><label>إجمالي رأس المال</label><div class="val">${formatMoney(bal.totalCapital)}</div></div>
+<div class="summary-item"><label>رأس المال المستثمر</label><div class="val">${formatMoney(bal.workingCapital)}</div></div>
+<div class="summary-item"><label>رأس المال المُرجع</label><div class="val green">${formatMoney(bal.capitalReturned)}</div></div>
+<div class="summary-item"><label>رأس المال المتبقي للإرجاع</label><div class="val orange">${formatMoney(bal.capitalPendingReturn)}</div></div>
+<div class="summary-item"><label>إجمالي الأرباح</label><div class="val">${formatMoney(bal.totalProfit)}</div></div>
+<div class="summary-item"><label>الأرباح المدفوعة</label><div class="val">${formatMoney(bal.profitPaid)}</div></div>
+<div class="summary-item"><label>الأرباح المستحقة</label><div class="val red">${formatMoney(bal.outstandingProfit)}</div></div>
+<div class="summary-item"><label>الرصيد الحالي (المستحق)</label><div class="val blue">${formatMoney(bal.currentBalance)}</div></div>
 `;
 let opsHtml='<table><thead><tr><th>العملية</th><th>الحالة</th><th>المساهمة</th><th>الربح</th></tr></thead><tbody>';
 opInvestors?.forEach(oi=>{opsHtml+=`<tr><td>${oi.operations?.name||'-'}</td><td><span class="badge badge-${oi.operations?.status}">${getStatusText(oi.operations?.status)}</span></td><td>${formatMoney(oi.contribution)}</td><td>${formatMoney(oi.profit)}</td></tr>`;});
@@ -579,6 +514,8 @@ document.getElementById('opType').value=operation?.type||'financing';
 document.getElementById('opAmount').value=operation?.amount||'';
 document.getElementById('opExpectedProfit').value=operation?.expected_profit||'';
 document.getElementById('opFinalProfit').value=operation?.final_profit||'';
+document.getElementById('opProfitApprovalDate').value=operation?.profit_approval_date||'';
+document.getElementById('opGoogleDriveUrl').value=operation?.google_drive_url||'';
 document.getElementById('opCompanyProfitType').value=operation?.company_profit_type||'';
 document.getElementById('opCompanyProfitValue').value=operation?.company_profit_value||'';
 document.getElementById('opStartDate').value=operation?.start_date||'';
@@ -608,7 +545,7 @@ document.getElementById('operationForm').addEventListener('submit',async(e)=>{
 e.preventDefault();
 setLoading('opSaveBtn',true);
 const id=document.getElementById('operationId').value;
-const data={name:document.getElementById('opName').value,type:document.getElementById('opType').value,client_id:document.getElementById('opClient').value,amount:document.getElementById('opAmount').value,expected_profit:document.getElementById('opExpectedProfit').value||null,final_profit:document.getElementById('opFinalProfit').value||null,company_profit_type:document.getElementById('opCompanyProfitType').value||null,company_profit_value:document.getElementById('opCompanyProfitValue').value||null,start_date:document.getElementById('opStartDate').value,duration_days:document.getElementById('opDurationDays').value||null,end_date:document.getElementById('opEndDate').value||null,status:document.getElementById('opStatus').value,notes:document.getElementById('opNotes').value};
+const data={name:document.getElementById('opName').value,type:document.getElementById('opType').value,client_id:document.getElementById('opClient').value,amount:document.getElementById('opAmount').value,expected_profit:document.getElementById('opExpectedProfit').value||null,final_profit:document.getElementById('opFinalProfit').value||null,profit_approval_date:document.getElementById('opProfitApprovalDate').value||null,google_drive_url:document.getElementById('opGoogleDriveUrl').value||null,company_profit_type:document.getElementById('opCompanyProfitType').value||null,company_profit_value:document.getElementById('opCompanyProfitValue').value||null,start_date:document.getElementById('opStartDate').value,duration_days:document.getElementById('opDurationDays').value||null,end_date:document.getElementById('opEndDate').value||null,status:document.getElementById('opStatus').value,notes:document.getElementById('opNotes').value};
 if(id){
 const{data:oldData}=await supabase.from('operations').select('final_profit').eq('id',id).single();
 await supabase.from('operations').update(data).eq('id',id);
@@ -675,12 +612,14 @@ document.getElementById('opSummaryGrid').innerHTML=`
 <div class="summary-item"><label>الممولين</label><div class="val">${investorCount}</div></div>
 <div class="summary-item"><label>المستثمر</label><div class="val">${formatMoney(totalInvested)}</div></div>
 <div class="summary-item"><label>الربح النهائي</label><div class="val">${formatMoney(op.final_profit)}</div></div>
+<div class="summary-item"><label>تاريخ اعتماد الربح</label><div class="val">${formatDate(op.profit_approval_date)}</div></div>
+<div class="summary-item"><label>مرفقات العملية</label><div class="val">${op.google_drive_url?`<a href="${op.google_drive_url}" target="_blank">فتح الرابط</a>`:'-'}</div></div>
 <div class="summary-item"><label>ربح الشركة</label><div class="val">${formatMoney(companyProfit)}</div></div>
 <div class="summary-item"><label>ربح الممولين</label><div class="val">${formatMoney(totalInvestorProfit)}</div></div>
 <div class="summary-item"><label>الموزع</label><div class="val green">${formatMoney(distributedProfit)}</div></div>
 <div class="summary-item"><label>المتبقي</label><div class="val red">${formatMoney(remainingProfit)}</div></div>
-<div class="summary-item"><label>مسدد</label><div class="val">${formatMoney(clientRepaid)}/${formatMoney(op.amount)}</div></div>
-<div class="summary-item"><label>مُرجع</label><div class="val">${formatMoney(capitalReturned)}/${formatMoney(totalInvested)}</div></div>
+<div class="summary-item"><label>مسدد من العميل</label><div class="val">${formatMoney(clientRepaid)}/${formatMoney(op.amount)}</div></div>
+<div class="summary-item"><label>رأس المال المُرجع</label><div class="val">${formatMoney(capitalReturned)}/${formatMoney(totalInvested)}</div></div>
 <div class="summary-item"><label>الحالة</label><div class="val"><span class="badge badge-${op.status}">${getStatusText(op.status)}</span></div></div>
 `;
 }
@@ -765,6 +704,8 @@ const{data:existing}=await supabase.from('operation_investors').select('contribu
 const totalContrib=(existing?.reduce((s,i)=>s+parseFloat(i.contribution||0),0)||0)+contrib;
 const totalProfit=(existing?.reduce((s,i)=>s+parseFloat(i.profit||0),0)||0)+profit;
 let warnings=[];
+if(contrib<=0)warnings.push('⚠️ المساهمة يجب أن تكون أكبر من صفر');
+if(profit<0)warnings.push('️ الربح لا يمكن أن يكون سالباً');
 if(totalContrib>opAmount)warnings.push(`⚠️ المساهمات (${formatMoney(totalContrib)}) تتجاوز التمويل (${formatMoney(opAmount)})`);
 let companyProfit=0;
 if(currentOpData.company_profit_type==='percentage'&&opFinalProfit)companyProfit=(opFinalProfit*parseFloat(currentOpData.company_profit_value||0))/100;
@@ -784,7 +725,9 @@ const{data:existing}=await supabase.from('operation_investors').select('id,contr
 const totalContrib=(existing?.filter(i=>i.id!==editId).reduce((s,i)=>s+parseFloat(i.contribution||0),0)||0)+contrib;
 const totalProfit=(existing?.filter(i=>i.id!==editId).reduce((s,i)=>s+parseFloat(i.profit||0),0)||0)+profit;
 let warnings=[];
-if(totalContrib>opAmount)warnings.push(`⚠️ المساهمات (${formatMoney(totalContrib)}) تتجاوز التمويل (${formatMoney(opAmount)})`);
+if(contrib<=0)warnings.push('⚠️ المساهمة يجب أن تكون أكبر من صفر');
+if(profit<0)warnings.push('️ الربح لا يمكن أن يكون سالباً');
+if(totalContrib>opAmount)warnings.push(`️ المساهمات (${formatMoney(totalContrib)}) تتجاوز التمويل (${formatMoney(opAmount)})`);
 let companyProfit=0;
 if(currentOpData.company_profit_type==='percentage'&&opFinalProfit)companyProfit=(opFinalProfit*parseFloat(currentOpData.company_profit_value||0))/100;
 else if(currentOpData.company_profit_type==='fixed')companyProfit=parseFloat(currentOpData.company_profit_value||0);
@@ -878,7 +821,7 @@ const container=document.getElementById('opTimelineList');
 if(!logs||logs.length===0){container.innerHTML='<div class="empty-state">لا يوجد سجل</div>';return;}
 let html='<div class="timeline">';
 logs.forEach(log=>{
-html+=`<div class="timeline-item"><div class="timeline-time">${new Date(log.created_at).toLocaleString('ar-EG')}</div><div class="timeline-user">👤 ${log.user_email||'مجهول'}</div><div class="timeline-content"><strong>${log.action}</strong><p>${log.description}</p></div></div>`;
+html+=`<div class="timeline-item"><div class="timeline-time">${new Date(log.created_at).toLocaleString('ar-EG')}</div><div class="timeline-user"> ${log.user_email||'مجهول'}</div><div class="timeline-content"><strong>${log.action}</strong><p>${log.description}</p></div></div>`;
 });
 html+='</div>';
 container.innerHTML=html;
