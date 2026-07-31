@@ -1,125 +1,33 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>نظام إدارة التمويل</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f2f5;direction:rtl;color:#333}
-.login-container{display:flex;justify-content:center;align-items:center;min-height:100vh;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}
-.login-box{background:white;padding:40px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);width:400px;max-width:90%}
-.login-box h1{text-align:center;color:#333;margin-bottom:30px;font-size:28px}
-.form-group{margin-bottom:18px}
-.form-group label{display:block;margin-bottom:6px;color:#555;font-weight:600;font-size:14px}
-.form-group input{width:100%;padding:10px 12px;border:2px solid #e0e0e0;border-radius:8px;font-size:15px}
-.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
-.btn-primary{background:#667eea;color:white}
-.btn-block{width:100%}
-.app-container{display:none;min-height:100vh}
-.header{background:white;padding:15px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.08);display:flex;justify-content:space-between;align-items:center}
-.header h1{color:#333;font-size:22px}
-</style>
+<title>اختبار</title>
 </head>
 <body>
-
-<div id="loginScreen" class="login-container">
-<div class="login-box">
-<h1>نظام إدارة التمويل</h1>
-<div class="form-group"><label>البريد الإلكتروني</label><input type="email" id="loginEmail"></div>
-<div class="form-group"><label>كلمة المرور</label><input type="password" id="loginPassword"></div>
-<button onclick="handleLogin()" class="btn btn-primary btn-block" id="loginBtn">تسجيل الدخول</button>
-<div id="errorMsg" style="margin-top:15px;color:red;display:none;"></div>
-</div>
-</div>
-
-<div id="appContainer" class="app-container">
-<div class="header">
-<h1>نظام إدارة التمويل</h1>
-<div><span id="userEmail"></span> <button class="btn" onclick="logout()" style="background:#6c757d;color:white;">خروج</button></div>
-</div>
-<div style="padding:40px;text-align:center;">
-<h2 style="color:#28a745;">✅ تم تسجيل الدخول بنجاح!</h2>
-<p style="font-size:18px;margin:20px 0;">مرحباً بك في نظام إدارة التمويل</p>
-<p id="userInfo" style="font-size:16px;"></p>
-</div>
-</div>
+<h1>اختبار الزر</h1>
+<button onclick="alert('الزر شغال!')">زر 1: Alert مباشر</button>
+<br><br>
+<button onclick="testFunc()">زر 2: يستدعي دالة</button>
+<br><br>
+<input type="text" id="testInput" placeholder="اكتب هنا">
+<br><br>
+<button onclick="testInput2()">زر 3: يقرأ Input</button>
 
 <script>
-alert('✅ الكود يعمل! الصفحة تم تحميلها بنجاح.');
+alert('1. الصفحة اتحملت');
 
-const SUPABASE_URL='https://znkexrtkqzmsqnmzvxoq.supabase.co';
-const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
-
-let supabase;
-try{
-supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-console.log('✅ Supabase connected');
-}catch(err){
-alert('خطأ في Supabase: '+err.message);
+function testFunc() {
+    alert('2. الدالة اشتغلت!');
 }
 
-let currentUser=null;
-
-function handleLogin(){
-alert('🔘 تم الضغط على زر تسجيل الدخول!');
-
-const email=document.getElementById('loginEmail').value;
-const password=document.getElementById('loginPassword').value;
-const errorMsg=document.getElementById('errorMsg');
-
-alert('📧 الإيميل: '+email);
-
-if(!email||!password){
-errorMsg.textContent='⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور';
-errorMsg.style.display='block';
-alert('⚠️ يرجى إدخال البيانات');
-return;
+function testInput2() {
+    const val = document.getElementById('testInput').value;
+    alert('3. قيمة الـ Input: ' + val);
 }
 
-errorMsg.style.display='none';
-alert('🔄 جاري تسجيل الدخول...');
-
-supabase.auth.signInWithPassword({email:email,password:password}).then(({data,error})=>{
-if(error){
-alert('❌ فشل تسجيل الدخول: '+error.message);
-errorMsg.textContent='❌ '+error.message;
-errorMsg.style.display='block';
-return;
-}
-
-alert('✅ تم تسجيل الدخول بنجاح!');
-currentUser=data.user;
-alert(' User: '+currentUser.email);
-
-document.getElementById('loginScreen').style.display='none';
-document.getElementById('appContainer').style.display='block';
-document.getElementById('userEmail').textContent=currentUser.email;
-document.getElementById('userInfo').textContent='المستخدم: '+currentUser.email;
-
-alert('🎉 تم الانتقال إلى الصفحة الرئيسية!');
-}).catch(err=>{
-alert('❌ خطأ: '+err.message);
-});
-}
-
-function logout(){
-supabase.auth.signOut().then(()=>{
-location.reload();
-});
-}
-
-supabase.auth.getSession().then(({data:{session}})=>{
-if(session){
-currentUser=session.user;
-document.getElementById('loginScreen').style.display='none';
-document.getElementById('appContainer').style.display='block';
-document.getElementById('userEmail').textContent=currentUser.email;
-document.getElementById('userInfo').textContent='المستخدم: '+currentUser.email;
-}
-});
-
-alert('✅ النظام جاهز!');
+alert('4. typeof testFunc = ' + typeof testFunc);
+alert('5. النظام جاهز - جرب الأزرار التلاتة');
 </script>
 </body>
 </html>
