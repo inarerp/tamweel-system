@@ -1,54 +1,116 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>اختبار</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار Supabase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background: #f9f9f9; }
+        input { padding: 10px; width: 300px; margin: 5px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 30px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background: #5568d3; }
+        #result { margin-top: 20px; padding: 15px; border: 2px solid #ccc; background: white; text-align: right; direction: rtl; border-radius: 8px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    </style>
 </head>
 <body>
-<h1>اختبار تسجيل الدخول</h1>
-<input type="email" id="email" placeholder="البريد" style="padding:10px;width:300px"><br><br>
-<input type="password" id="password" placeholder="كلمة المرور" style="padding:10px;width:300px"><br><br>
-<button onclick="test()" style="padding:10px 30px">تسجيل الدخول</button>
-<div id="result" style="margin-top:20px;padding:15px;border:2px solid #ccc"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-alert('الخطوة 1: الصفحة تحمّلت ✓');
-
-const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
-
-alert('الخطوة 2: المفاتيح موجودة ✓');
-
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-alert('الخطوة 3: Supabase client تم إنشاؤه ✓');
-
-async function test() {
-  alert('الخطوة 4: تم الضغط على الزر ✓');
-  
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  
-  alert('الخطوة 5: الإيميل = ' + email);
-  
-  const resultDiv = document.getElementById('result');
-  resultDiv.innerHTML = 'جاري...';
-  
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    <h1>🔍 اختبار اتصال Supabase وتسجيل الدخول</h1>
     
-    if (error) {
-      resultDiv.innerHTML = '❌ فشل: ' + error.message;
-      resultDiv.style.borderColor = 'red';
-    } else {
-      resultDiv.innerHTML = '✅ نجح! الإيميل: ' + data.user.email;
-      resultDiv.style.borderColor = 'green';
-    }
-  } catch (e) {
-    resultDiv.innerHTML = '❌ استثناء: ' + e.message;
-  }
-}
-</script>
+    <input type="email" id="email" placeholder="البريد الإلكتروني"><br>
+    <input type="password" id="password" placeholder="كلمة المرور"><br>
+    <button onclick="test()">بدء الاختبار</button>
+    
+    <div id="result"></div>
+
+    <script>
+        // ✅ تم وضع المفاتيح الصحيحة هنا
+        const SUPABASE_URL = "https://znkexrtkqzmsqnmzvxoq.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs";
+
+        const supabase = window.supabase.createClient(
+            SUPABASE_URL,
+            SUPABASE_ANON_KEY
+        );
+
+        const result = document.getElementById("result");
+
+        function log(msg, color="black"){
+            result.innerHTML += `<div style="margin:8px 0; color:${color}; font-weight:bold;">${msg}</div>`;
+        }
+
+        async function test(){
+            result.innerHTML = "";
+            log("🚀 بدء الاختبار...", "blue");
+
+            try {
+                log("1️⃣ اختبار الاتصال بقاعدة البيانات...");
+                const ping = await supabase.from("user_profiles").select("*").limit(1);
+
+                if(ping.error){
+                    log("❌ خطأ في قاعدة البيانات", "red");
+                    log(ping.error.message, "red");
+                } else {
+                    log("✅ تم الاتصال بقاعدة البيانات بنجاح", "green");
+                }
+
+                const email = document.getElementById("email").value;
+                const password = document.getElementById("password").value;
+
+                if(!email || !password) {
+                    log("⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور", "orange");
+                    return;
+                }
+
+                log("2️⃣ محاولة تسجيل الدخول...");
+
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if(error){
+                    log("❌ فشل تسجيل الدخول", "red");
+                    log("الرسالة: " + error.message, "red");
+                    if(error.status) log("الحالة: " + error.status, "red");
+                    if(error.code) log("الكود: " + error.code, "red");
+                    return;
+                }
+
+                log("✅ تم تسجيل الدخول بنجاح", "green");
+                log("معرف المستخدم (User ID): " + data.user.id);
+
+                log("3️⃣ قراءة بيانات المستخدم من user_profiles...");
+
+                const profile = await supabase
+                    .from("user_profiles")
+                    .select("*")
+                    .eq("id", data.user.id)
+                    .single();
+
+                if(profile.error){
+                    log("❌ خطأ في قراءة user_profiles", "red");
+                    log(profile.error.message, "red");
+                } else {
+                    log("✅ تم العثور على الملف الشخصي", "green");
+                    log("الصلاحية (Role): " + profile.data.role);
+                    log("الكيان المرتبط (Entity): " + (profile.data.entity_id || "لا يوجد"));
+                }
+
+                const session = await supabase.auth.getSession();
+                if(session.data.session){
+                    log("✅ تم إنشاء الجلسة (Session) بنجاح", "green");
+                } else {
+                    log("❌ لم يتم إنشاء الجلسة", "red");
+                }
+
+                log("🎉 انتهى الاختبار بنجاح!", "green");
+
+            } catch(e){
+                log("❌ استثناء في JavaScript", "red");
+                log(e.message, "red");
+                console.error(e);
+            }
+        }
+    </script>
 </body>
 </html>
