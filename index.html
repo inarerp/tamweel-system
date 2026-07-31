@@ -1,39 +1,52 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>اختبار تسجيل الدخول</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<title>اختبار</title>
 </head>
-<body style="font-family: Arial; padding: 20px; text-align: center;">
+<body>
 <h1>اختبار تسجيل الدخول</h1>
-<input type="email" id="email" placeholder="البريد الإلكتروني" style="padding: 10px; width: 300px; margin: 10px;"><br>
-<input type="password" id="password" placeholder="كلمة المرور" style="padding: 10px; width: 300px; margin: 10px;"><br>
-<button onclick="testLogin()" style="padding: 10px 30px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">تسجيل الدخول</button>
-<div id="result" style="margin-top: 20px; padding: 15px; border: 2px solid #ccc;"></div>
+<input type="email" id="email" placeholder="البريد" style="padding:10px;width:300px"><br><br>
+<input type="password" id="password" placeholder="كلمة المرور" style="padding:10px;width:300px"><br><br>
+<button onclick="test()" style="padding:10px 30px">تسجيل الدخول</button>
+<div id="result" style="margin-top:20px;padding:15px;border:2px solid #ccc"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+alert('الخطوة 1: الصفحة تحمّلت ✓');
+
 const SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
+
+alert('الخطوة 2: المفاتيح موجودة ✓');
+
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function testLogin() {
-  const resultDiv = document.getElementById('result');
-  resultDiv.innerHTML = '⏳ جاري تسجيل الدخول...';
+alert('الخطوة 3: Supabase client تم إنشاؤه ✓');
+
+async function test() {
+  alert('الخطوة 4: تم الضغط على الزر ✓');
   
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
   
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  alert('الخطوة 5: الإيميل = ' + email);
   
-  if (error) {
-    resultDiv.innerHTML = '❌ فشل تسجيل الدخول<br><strong>الخطأ:</strong> ' + error.message + '<br><br><strong>الأسباب المحتملة:</strong><br>1. الإيميل أو الباسورد غلط<br>2. الإيميل غير مؤكد (فعّل Auto Confirm في Supabase)<br>3. Email provider مش مفعّل';
-    resultDiv.style.borderColor = 'red';
-    resultDiv.style.background = '#ffebee';
-  } else {
-    resultDiv.innerHTML = '✅ نجح تسجيل الدخول!<br><strong>الإيميل:</strong> ' + data.user.email + '<br><strong>User ID:</strong> ' + data.user.id;
-    resultDiv.style.borderColor = 'green';
-    resultDiv.style.background = '#e8f5e9';
+  const resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = 'جاري...';
+  
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (error) {
+      resultDiv.innerHTML = '❌ فشل: ' + error.message;
+      resultDiv.style.borderColor = 'red';
+    } else {
+      resultDiv.innerHTML = '✅ نجح! الإيميل: ' + data.user.email;
+      resultDiv.style.borderColor = 'green';
+    }
+  } catch (e) {
+    resultDiv.innerHTML = '❌ استثناء: ' + e.message;
   }
 }
 </script>
