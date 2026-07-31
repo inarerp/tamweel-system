@@ -15,7 +15,7 @@
 </head>
 <body>
 
-    <h2>🔍 اختبار اتصال Supabase</h2>
+    <h2>🔍 اختبار اتصال Supabase وتسجيل الدخول</h2>
     
     <input type="email" id="email" placeholder="البريد الإلكتروني"><br>
     <input type="password" id="password" placeholder="كلمة المرور"><br>
@@ -51,18 +51,7 @@
             }
 
             log("✅ مكتبة Supabase اتحملت", "green");
-const profile = await supabase
-  .from("user_profiles")
-  .select("*")
-  .eq("id", data.user.id)
-  .single();
 
-if (profile.error) {
-    log("❌ Profile Error: " + profile.error.message, "red");
-} else {
-    log("✅ Profile OK", "green");
-    log("Role: " + profile.data.role);
-}
             const SUPABASE_URL = "https://znkexrtkqzmsqnmzvxoq.supabase.co";
             const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs";
 
@@ -103,6 +92,22 @@ if (profile.error) {
 
                     log("✅ Login Success", "green");
                     log("User : " + data.user.email);
+
+                    // --- الإضافة الجديدة لاختبار جدول user_profiles ---
+                    log("جاري قراءة جدول user_profiles...", "blue");
+                    const profile = await supabase
+                        .from("user_profiles")
+                        .select("*")
+                        .eq("id", data.user.id)
+                        .single();
+
+                    if (profile.error) {
+                        log("❌ Profile Error: " + profile.error.message, "red");
+                    } else {
+                        log("✅ Profile OK", "green");
+                        log("Role: " + profile.data.role);
+                    }
+                    // ---------------------------------------------------
 
                 } catch(e) {
                     log("❌ Exception", "red");
