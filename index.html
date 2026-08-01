@@ -1041,7 +1041,7 @@ document.getElementById('editOpInvestorForm').addEventListener('submit', async f
     window.debug('✅ تم تعديل ممول العملية', 'success');
 });
 
-function confirmDeleteOpInvestor(oiId, opId, invName, contrib, profit) {
+async function confirmDeleteOpInvestor(oiId, opId, invName, contrib, profit) {
     if (confirm('حذف ' + invName + '؟\nمساهمة: ' + formatMoney(contrib) + ' | ربح: ' + formatMoney(profit))) {
         await addLog(opId, 'حذف ممول (سجل)', 'تم حذف ' + invName + ' بمساهمة ' + formatMoney(contrib));
         await supabase.from('operation_investors').delete().eq('id', oiId);
@@ -1204,7 +1204,7 @@ document.getElementById('transferForm').addEventListener('submit', async functio
     window.debug('✅ تم إضافة التحويل', 'success');
 });
 
-function confirmDeleteTransfer(tId, opId, amount, purpose) {
+async function confirmDeleteTransfer(tId, opId, amount, purpose) {
     if (confirm('حذف التحويل؟\nالمبلغ: ' + formatMoney(amount) + ' | الغرض: ' + purpose)) {
         if (opId) await addLog(opId, 'حذف تحويل (سجل)', 'تم حذف تحويل ' + formatMoney(amount) + ' - ' + purpose);
         await supabase.from('transfers').delete().eq('id', tId);
