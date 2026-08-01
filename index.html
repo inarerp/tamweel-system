@@ -2,9 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>نظام إدارة التمويل - v3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="stylesheet" href="css/style.css?v=1">
+<link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
 
@@ -42,17 +43,32 @@
 <div id="dashboardAlerts"></div>
 <div class="stats-grid" id="dashboardStats"></div>
 </div>
-<div id="clients" class="screen"><div class="table-container"><div class="table-header"><h2>العملاء</h2><button class="btn btn-primary admin-only" onclick="openClientModal()">+ إضافة عميل</button></div><div class="table-scroll"><div id="clientsTable"></div></div></div></div>
-<div id="investors" class="screen"><div class="table-container"><div class="table-header"><h2>الممولين</h2><button class="btn btn-primary admin-only" onclick="openInvestorModal()">+ إضافة ممول</button></div><div class="table-scroll"><div id="investorsTable"></div></div></div></div>
-<div id="operations" class="screen"><div class="table-container"><div class="table-header"><h2>العمليات</h2><button class="btn btn-primary admin-only" onclick="openOperationModal()">+ إضافة عملية</button></div><div class="table-scroll"><div id="operationsTable"></div></div></div></div>
-<div id="transfers" class="screen"><div class="table-container"><div class="table-header"><h2>التحويلات المالية</h2><button class="btn btn-primary admin-only" onclick="openTransferModal()">+ إضافة تحويل</button></div><div class="table-scroll"><div id="transfersTable"></div></div></div></div>
-<div id="myAccount" class="screen"><div id="myAccountContent"></div></div>
+<div id="clients" class="screen"><div class="table-container"><div class="table-header"><h2>العملاء</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة عميل</button></div><div class="table-scroll"><div id="clientsTable"></div></div></div></div>
+<div id="investors" class="screen"><div class="table-container"><div class="table-header"><h2>الممولين</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة ممول</button></div><div class="table-scroll"><div id="investorsTable"></div></div></div></div>
+<div id="operations" class="screen"><div class="table-container"><div class="table-header"><h2>العمليات</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة عملية</button></div><div class="table-scroll"><div id="operationsTable"></div></div></div></div>
+<div id="transfers" class="screen"><div class="table-container"><div class="table-header"><h2>التحويلات المالية</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة تحويل</button></div><div class="table-scroll"><div id="transfersTable"></div></div></div></div>
+<div id="myAccount" class="screen"><div id="myAccountContent" class="empty-state">مرحباً بك في حسابك</div></div>
 <div id="activityLog" class="screen"><div class="table-container"><div class="table-header"><h2>سجل النشاط</h2></div><div class="table-scroll"><div id="activityLogTable"></div></div></div></div>
 </div>
 </div>
 
-<!-- Modals (Client, Investor, Operation, Details, Add/Edit Investor, Transfer, Confirm, Toast) -->
-<!-- (تم الاحتفاظ بجميع الـ Modals كما هي في الكود السابق لتوفير المساحة، انسخها من ملفك الحالي وضعها هنا قبل div#debugBox) -->
+<!-- Modals -->
+<div id="clientModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة عميل</h2><button class="close-btn" onclick="closeModal('clientModal')">&times;</button></div><form id="clientForm"><div class="form-group"><label>الاسم</label><input type="text" id="clientName" required></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+
+<div id="investorModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة ممول</h2><button class="close-btn" onclick="closeModal('investorModal')">&times;</button></div><form id="investorForm"><div class="form-group"><label>الاسم</label><input type="text" id="investorName" required></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+
+<div id="operationModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة عملية</h2><button class="close-btn" onclick="closeModal('operationModal')">&times;</button></div><form id="operationForm">
+<div class="form-row"><div class="form-group"><label>اسم العملية</label><input type="text" id="opName" required></div><div class="form-group"><label>قيمة التمويل</label><input type="number" id="opAmount" step="0.01" required></div></div>
+<div class="form-row"><div class="form-group"><label>تاريخ البداية</label><input type="date" id="opStartDate"></div><div class="form-group"><label>عدد الأيام</label><input type="number" id="opDurationDays"></div></div>
+<div class="form-row"><div class="form-group"><label>تاريخ النهاية</label><input type="date" id="opEndDate"></div></div>
+<button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+
+<div id="transferModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة تحويل</h2><button class="close-btn" onclick="closeModal('transferModal')">&times;</button></div><form id="transferForm">
+<div class="form-group"><label>المبلغ</label><input type="number" id="transferAmount" step="0.01" required></div>
+<div class="form-group"><label>التاريخ</label><input type="date" id="transferDate" required></div>
+<button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+
+<div id="toast" class="toast"></div>
 
 <div id="debugBox">
 <div class="debug-controls">
@@ -64,6 +80,6 @@
 <div id="debugContent"></div>
 </div>
 
-<script src="js/app.js?v=1"></script>
+<script src="js/app.js?v=2"></script>
 </body>
 </html>
