@@ -1,16 +1,13 @@
 /* ============================================
    نظام إدارة التمويل - Stylesheet
    ============================================ */
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; direction: rtl; color: #333; padding-bottom: 320px; }
 
-/* Login Screen */
 .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 400px; max-width: 90%; }
 .login-box h1 { text-align: center; color: #333; margin-bottom: 30px; font-size: 28px; }
 
-/* Forms */
 .form-group { margin-bottom: 18px; }
 .form-group label { display: block; margin-bottom: 6px; color: #555; font-weight: 600; font-size: 14px; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 15px; }
@@ -18,7 +15,6 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; directi
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-row.full { grid-template-columns: 1fr; }
 
-/* Buttons */
 .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .btn-primary { background: #667eea; color: white; }
 .btn-primary:hover { background: #5568d3; }
@@ -31,7 +27,6 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; directi
 .btn-block { width: 100%; }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* App Layout */
 .app-container { display: none; min-height: 100vh; }
 .header { background: white; padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
 .header h1 { color: #333; font-size: 22px; }
@@ -43,7 +38,6 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; directi
 .nav button.active { background: #667eea; color: white; }
 .content { padding: 20px; max-width: 1400px; margin: 0 auto; }
 
-/* Screens & Tables */
 .screen { display: none; }
 .screen.active { display: block; }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
@@ -65,7 +59,6 @@ td { padding: 14px; border-bottom: 1px solid #f0f0f0; color: #333; font-size: 14
 tr:hover { background: #f8f9fa; }
 .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
 
-/* Badges & Modals */
 .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; display: inline-block; }
 .badge-draft { background: #fff3cd; color: #856404; }
 .badge-active { background: #d4edda; color: #155724; }
@@ -88,7 +81,6 @@ tr:hover { background: #f8f9fa; }
 .close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #999; line-height: 1; }
 .close-btn:hover { color: #333; }
 
-/* Operation Details & Tabs */
 .op-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; background: #f8f9fa; padding: 16px; border-radius: 12px; }
 .summary-item { text-align: center; }
 .summary-item label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
@@ -102,7 +94,6 @@ tr:hover { background: #f8f9fa; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* Timeline & States */
 .timeline { position: relative; padding-right: 20px; border-right: 2px solid #e0e0e0; margin-top: 10px; }
 .timeline-item { position: relative; margin-bottom: 20px; padding-right: 20px; }
 .timeline-item::before { content: ''; position: absolute; right: -26px; top: 5px; width: 10px; height: 10px; background: #667eea; border-radius: 50%; border: 2px solid white; }
@@ -113,7 +104,6 @@ tr:hover { background: #f8f9fa; }
 .timeline-content p { margin: 0; color: #555; font-size: 14px; }
 .empty-state { text-align: center; padding: 40px 20px; color: #999; }
 
-/* Alerts & Toasts */
 .warning-box { background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ffeeba; font-size: 14px; }
 .error-box { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #f5c6cb; font-size: 14px; }
 .success-box { background: #d4edda; color: #155724; padding: 12px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #c3e6cb; font-size: 14px; }
@@ -127,7 +117,6 @@ tr:hover { background: #f8f9fa; }
 .toast.error { background: #dc3545; }
 .toast.warning { background: #ffc107; color: #000; }
 
-/* Debug Box */
 #debugBox { position: fixed; bottom: 0; left: 0; right: 0; max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; border-top: 3px solid #007acc; z-index: 9999; }
 #debugBox h3 { color: #007acc; margin-bottom: 10px; font-size: 14px; }
 .debug-line { margin: 3px 0; padding: 4px; border-right: 3px solid #4caf50; background: #2d2d2d; font-size: 11px; }
@@ -138,7 +127,6 @@ tr:hover { background: #f8f9fa; }
 .debug-controls { position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; }
 .debug-controls button { background: #007acc; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
 
-/* Utilities */
 .hidden-profit { background: #333; color: #333; border-radius: 4px; padding: 2px 6px; user-select: none; }
 .account-statement { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
 .statement-header { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
@@ -148,7 +136,6 @@ tr:hover { background: #f8f9fa; }
 .statement-item .value.positive { color: #28a745; }
 .statement-item .value.negative { color: #dc3545; }
 
-/* Responsive */
 @media(max-width: 768px) {
     .form-row { grid-template-columns: 1fr; }
     .stats-grid { grid-template-columns: 1fr 1fr; }
