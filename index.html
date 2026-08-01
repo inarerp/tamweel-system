@@ -2,38 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>نظام إدارة التمويل - Debug</title>
-
-<!-- سكربت Debug الأول - يُحمّل قبل أي شيء -->
-<script>
-// دالة Debug تُعرّف فوراً
-window.debugMessages = [];
-window.debug = function(msg, type='info') {
-    window.debugMessages.push({msg: msg, type: type, time: new Date().toLocaleTimeString('ar-EG')});
-    const debugContent = document.getElementById('debugContent');
-    if (debugContent) {
-        const line = document.createElement('div');
-        line.className = 'debug-line debug-' + type;
-        line.textContent = '[' + new Date().toLocaleTimeString('ar-EG') + '] ' + msg;
-        debugContent.appendChild(line);
-        const debugBox = document.getElementById('debugBox');
-        if (debugBox) debugBox.scrollTop = debugBox.scrollHeight;
-    }
-};
-
-// التقاط الأخطاء فوراً
-window.onerror = function(message, source, line, col, error) {
-    window.debug('❌ JavaScript Error: ' + message + ' (السطر: ' + line + ')', 'error');
-    return true;
-};
-
-window.onunhandledrejection = function(event) {
-    window.debug('❌ Promise Error: ' + event.reason, 'error');
-};
-
-window.debug('🚀 بدأ تحميل الصفحة', 'success');
-</script>
-
+<title>نظام إدارة التمويل</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f0f2f5;direction:rtl;color:#333;padding-bottom:20px}
@@ -120,23 +90,43 @@ td{padding:14px;border-bottom:1px solid #f0f0f0}
 
 <div id="toast" class="toast"></div>
 
-<!-- Debug Box -->
 <div id="debugBox">
     <h3>🔍 Debug Log</h3>
     <div id="debugContent"></div>
 </div>
 
-<!-- تحميل Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- الكود الرئيسي -->
 <script>
-window.debug(' تم تحميل HTML', 'success');
+window.debugMessages = [];
+window.debug = function(msg, type='info') {
+    window.debugMessages.push({msg: msg, type: type, time: new Date().toLocaleTimeString('ar-EG')});
+    const debugContent = document.getElementById('debugContent');
+    if (debugContent) {
+        const line = document.createElement('div');
+        line.className = 'debug-line debug-' + type;
+        line.textContent = '[' + new Date().toLocaleTimeString('ar-EG') + '] ' + msg;
+        debugContent.appendChild(line);
+        const debugBox = document.getElementById('debugBox');
+        if (debugBox) debugBox.scrollTop = debugBox.scrollHeight;
+    }
+};
 
-// التحقق من Supabase
+window.onerror = function(message, source, line, col, error) {
+    window.debug('❌ JavaScript Error: ' + message + ' (السطر: ' + line + ')', 'error');
+    return true;
+};
+
+window.onunhandledrejection = function(event) {
+    window.debug('❌ Promise Error: ' + event.reason, 'error');
+};
+
+window.debug('🚀 بدأ تحميل الصفحة', 'success');
+</script>
+
+<script>
+window.debug('📦 تم تحميل HTML', 'success');
+
 if (typeof window.supabase === 'undefined') {
     window.debug('❌ مكتبة Supabase لم تُحمّل!', 'error');
-    window.debug('⚠️ تأكد من اتصال الإنترنت', 'warning');
 } else {
     window.debug('✅ مكتبة Supabase تم تحميلها', 'success');
 }
@@ -144,25 +134,26 @@ if (typeof window.supabase === 'undefined') {
 const SUPABASE_URL='https://znkexrtkqzmsqnmzvxoq.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
 
-let supabase;
+// ✅ استخدام var بدلاً من let لتجنب خطأ "already been declared"
+var supabase;
 try {
     if (typeof window.supabase !== 'undefined') {
         supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         window.debug('✅ تم إنشاء Supabase Client', 'success');
     } else {
-        window.debug('❌ لا يمكن إنشاء Client - Supabase غير معرّف', 'error');
+        window.debug('❌ لا يمكن إنشاء Client', 'error');
     }
 } catch (err) {
     window.debug('❌ خطأ في createClient: ' + err.message, 'error');
 }
 
-let currentUser = null;
-let userRole = 'admin';
+var currentUser = null;
+var userRole = 'admin';
 
 if (supabase) {
     window.debug(' جاري التحقق من الجلسة...', 'info');
     supabase.auth.getSession().then(({data:{session}}) => {
-        window.debug(' Session: ' + (session ? 'موجود' : 'غير موجود'), session ? 'success' : 'info');
+        window.debug('📋 Session: ' + (session ? 'موجود' : 'غير موجود'), session ? 'success' : 'info');
         if (session) {
             currentUser = session.user;
             supabase.from('user_profiles').select('role').eq('id', currentUser.id).maybeSingle().then(({data:profile}) => {
@@ -189,14 +180,14 @@ function handleLoginClick() {
     const errorMsg = document.getElementById('errorMsg');
 
     if (!email || !password) {
-        errorMsg.textContent = '️ يرجى إدخال البريد الإلكتروني وكلمة المرور';
+        errorMsg.textContent = '⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور';
         errorMsg.style.display = 'block';
         window.debug('⚠️ بيانات ناقصة', 'warning');
         return;
     }
 
     errorMsg.style.display = 'none';
-    window.debug(' Email: ' + email, 'info');
+    window.debug('📧 Email: ' + email, 'info');
     window.debug('🔄 جاري استدعاء signInWithPassword...', 'info');
 
     supabase.auth.signInWithPassword({email: email, password: password}).then(({data, error}) => {
@@ -212,7 +203,7 @@ function handleLoginClick() {
 
         supabase.from('user_profiles').select('role,entity_id').eq('id', currentUser.id).maybeSingle().then(({data:profile, error:profError}) => {
             if (profError) {
-                window.debug('️ خطأ في profile: ' + profError.message, 'warning');
+                window.debug('⚠️ خطأ في profile: ' + profError.message, 'warning');
                 userRole = 'admin';
             } else if (profile) {
                 window.debug('✅ Profile OK - Role: ' + profile.role, 'success');
@@ -238,11 +229,11 @@ window.debug('✅ handleLoginClick تم تعريفها', 'success');
 function showApp() {
     window.debug('🎨 إخفاء loginScreen', 'info');
     document.getElementById('loginScreen').style.display = 'none';
-    window.debug(' إظهار appContainer', 'info');
+    window.debug('🎨 إظهار appContainer', 'info');
     document.getElementById('appContainer').style.display = 'block';
     document.getElementById('userEmail').textContent = currentUser.email;
     document.getElementById('userRole').textContent = userRole === 'admin' ? 'مدير' : userRole === 'investor' ? 'ممول' : 'عميل';
-    window.debug(' جاري استدعاء loadDashboard...', 'info');
+    window.debug('📊 جاري استدعاء loadDashboard...', 'info');
     loadDashboard();
 }
 
@@ -334,7 +325,7 @@ async function loadDashboard() {
 }
 
 async function loadClients() {
-    window.debug('👥 بدأ loadClients', 'info');
+    window.debug(' بدأ loadClients', 'info');
     try {
         const {data} = await supabase.from('clients').select('*').order('created_at', {ascending: false});
         if (!data || data.length === 0) {
