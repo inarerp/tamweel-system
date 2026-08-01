@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>نظام إدارة التمويل - v3</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="stylesheet" href="css/style.css?v=2">
+<link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
 
@@ -39,47 +39,47 @@
 <button onclick="showScreen('activityLog',this)" class="nav-activity" style="display:none">سجل النشاط</button>
 </div>
 <div class="content">
-<div id="dashboard" class="screen active">
-<div id="dashboardAlerts"></div>
-<div class="stats-grid" id="dashboardStats"></div>
-</div>
-<div id="clients" class="screen"><div class="table-container"><div class="table-header"><h2>العملاء</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة عميل</button></div><div class="table-scroll"><div id="clientsTable"></div></div></div></div>
-<div id="investors" class="screen"><div class="table-container"><div class="table-header"><h2>الممولين</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة ممول</button></div><div class="table-scroll"><div id="investorsTable"></div></div></div></div>
-<div id="operations" class="screen"><div class="table-container"><div class="table-header"><h2>العمليات</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة عملية</button></div><div class="table-scroll"><div id="operationsTable"></div></div></div></div>
-<div id="transfers" class="screen"><div class="table-container"><div class="table-header"><h2>التحويلات المالية</h2><button class="btn btn-primary admin-only" onclick="showToast('قريباً')">+ إضافة تحويل</button></div><div class="table-scroll"><div id="transfersTable"></div></div></div></div>
+<div id="dashboard" class="screen active"><div id="dashboardAlerts"></div><div class="stats-grid" id="dashboardStats"></div></div>
+<div id="clients" class="screen"><div class="table-container"><div class="table-header"><h2>العملاء</h2><button class="btn btn-primary admin-only" onclick="openClientModal()">+ إضافة عميل</button></div><div class="table-scroll"><div id="clientsTable"></div></div></div></div>
+<div id="investors" class="screen"><div class="table-container"><div class="table-header"><h2>الممولين</h2><button class="btn btn-primary admin-only" onclick="openInvestorModal()">+ إضافة ممول</button></div><div class="table-scroll"><div id="investorsTable"></div></div></div></div>
+<div id="operations" class="screen"><div class="table-container"><div class="table-header"><h2>العمليات</h2><button class="btn btn-primary admin-only" onclick="openOperationModal()">+ إضافة عملية</button></div><div class="table-scroll"><div id="operationsTable"></div></div></div></div>
+<div id="transfers" class="screen"><div class="table-container"><div class="table-header"><h2>التحويلات المالية</h2><button class="btn btn-primary admin-only" onclick="openTransferModal()">+ إضافة تحويل</button></div><div class="table-scroll"><div id="transfersTable"></div></div></div></div>
 <div id="myAccount" class="screen"><div id="myAccountContent" class="empty-state">مرحباً بك في حسابك</div></div>
 <div id="activityLog" class="screen"><div class="table-container"><div class="table-header"><h2>سجل النشاط</h2></div><div class="table-scroll"><div id="activityLogTable"></div></div></div></div>
 </div>
 </div>
 
 <!-- Modals -->
-<div id="clientModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة عميل</h2><button class="close-btn" onclick="closeModal('clientModal')">&times;</button></div><form id="clientForm"><div class="form-group"><label>الاسم</label><input type="text" id="clientName" required></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+<div id="clientModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="clientModalTitle">إضافة عميل</h2><button class="close-btn" onclick="closeModal('clientModal')">&times;</button></div><form id="clientForm"><input type="hidden" id="clientId"><div class="form-group"><label>الاسم *</label><input type="text" id="clientName" required></div><div class="form-row"><div class="form-group"><label>الهاتف</label><input type="tel" id="clientPhone"></div><div class="form-group"><label>البريد</label><input type="email" id="clientEmail"></div></div><div class="form-group"><label>العنوان</label><input type="text" id="clientAddress"></div><div class="form-group"><label>ملاحظات</label><textarea id="clientNotes" rows="3"></textarea></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
 
-<div id="investorModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة ممول</h2><button class="close-btn" onclick="closeModal('investorModal')">&times;</button></div><form id="investorForm"><div class="form-group"><label>الاسم</label><input type="text" id="investorName" required></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+<div id="investorModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="investorModalTitle">إضافة ممول</h2><button class="close-btn" onclick="closeModal('investorModal')">&times;</button></div><form id="investorForm"><input type="hidden" id="investorId"><div class="form-group"><label>الاسم *</label><input type="text" id="investorName" required></div><div class="form-row"><div class="form-group"><label>الهاتف</label><input type="tel" id="investorPhone"></div><div class="form-group"><label>البريد</label><input type="email" id="investorEmail"></div></div><div class="form-group"><label>العنوان</label><input type="text" id="investorAddress"></div><div class="form-group"><label>ملاحظات</label><textarea id="investorNotes" rows="3"></textarea></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
 
-<div id="operationModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة عملية</h2><button class="close-btn" onclick="closeModal('operationModal')">&times;</button></div><form id="operationForm">
-<div class="form-row"><div class="form-group"><label>اسم العملية</label><input type="text" id="opName" required></div><div class="form-group"><label>قيمة التمويل</label><input type="number" id="opAmount" step="0.01" required></div></div>
-<div class="form-row"><div class="form-group"><label>تاريخ البداية</label><input type="date" id="opStartDate"></div><div class="form-group"><label>عدد الأيام</label><input type="number" id="opDurationDays"></div></div>
-<div class="form-row"><div class="form-group"><label>تاريخ النهاية</label><input type="date" id="opEndDate"></div></div>
-<button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+<div id="operationModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="operationModalTitle">إضافة عملية</h2><button class="close-btn" onclick="closeModal('operationModal')">&times;</button></div><form id="operationForm"><input type="hidden" id="operationId"><div class="form-row"><div class="form-group"><label>اسم العملية *</label><input type="text" id="opName" required></div><div class="form-group"><label>نوع العملية *</label><select id="opType" required><option value="financing">تمويل</option><option value="supply">توريد</option></select></div></div><div class="form-row"><div class="form-group"><label>العميل *</label><select id="opClient" required></select></div><div class="form-group"><label>قيمة التمويل *</label><input type="number" id="opAmount" step="0.01" required></div></div><div class="form-row"><div class="form-group"><label>الربح المتوقع</label><input type="number" id="opExpectedProfit" step="0.01"></div><div class="form-group"><label>الربح النهائي</label><input type="number" id="opFinalProfit" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>تاريخ الاعتماد</label><input type="date" id="opProfitApprovalDate"></div><div class="form-group"><label>رابط Drive</label><input type="url" id="opGoogleDriveUrl"></div></div><div class="form-row"><div class="form-group"><label>طريقة ربح الشركة</label><select id="opCompanyProfitType"><option value="">بدون</option><option value="percentage">نسبة %</option><option value="fixed">رقم ثابت</option></select></div><div class="form-group"><label>القيمة</label><input type="number" id="opCompanyProfitValue" step="0.01"></div></div><div class="form-row"><div class="form-group"><label>تاريخ البداية *</label><input type="date" id="opStartDate" required></div><div class="form-group"><label>عدد الأيام</label><input type="number" id="opDurationDays"></div></div><div class="form-row"><div class="form-group"><label>تاريخ النهاية</label><input type="date" id="opEndDate"></div><div class="form-group"><label>الحالة</label><select id="opStatus"><option value="draft">تحت الإنشاء</option><option value="active">نشطة</option><option value="completed">انتهت</option><option value="cancelled">ألغيت</option></select></div></div><div class="form-group"><label>ملاحظات</label><textarea id="opNotes" rows="3"></textarea></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
 
-<div id="transferModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة تحويل</h2><button class="close-btn" onclick="closeModal('transferModal')">&times;</button></div><form id="transferForm">
-<div class="form-group"><label>المبلغ</label><input type="number" id="transferAmount" step="0.01" required></div>
-<div class="form-group"><label>التاريخ</label><input type="date" id="transferDate" required></div>
-<button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+<div id="operationDetailsModal" class="modal"><div class="modal-content large"><div class="modal-header"><h2 id="opDetailsTitle">تفاصيل العملية</h2><button class="close-btn" onclick="closeModal('operationDetailsModal')">&times;</button></div><div class="op-summary-grid" id="opSummaryGrid"></div><div class="workflow-actions admin-only" id="workflowActions"><button class="btn btn-info" onclick="workflowAction('activate')">🚀 تفعيل</button><button class="btn btn-success" onclick="openWorkflowTransfer('client_repayment')">💰 سداد</button><button class="btn btn-warning profit-field" onclick="openWorkflowTransfer('profit_distribution')">📊 أرباح</button><button class="btn btn-secondary" onclick="openWorkflowTransfer('capital_return')">🔄 إرجاع</button><button class="btn btn-primary" onclick="workflowAction('complete')">✅ إنهاء</button><button class="btn btn-danger" onclick="workflowAction('unlock')" id="unlockBtn" style="display:none">🔓 فتح</button></div><div class="tabs"><button class="tab active" onclick="showOpTab('investors',this)">الممولين</button><button class="tab" onclick="showOpTab('transfers',this)">التحويلات</button><button class="tab" onclick="showOpTab('timeline',this)">السجل</button></div><div id="opTabInvestors" class="tab-content active"><div id="opInvestorsList"></div><button class="btn btn-success admin-only" onclick="openAddInvestorToOp()" style="margin-top:12px;">+ إضافة ممول</button></div><div id="opTabTransfers" class="tab-content"><div id="opTransfersList"></div><button class="btn btn-success admin-only" onclick="openAddTransferToOp()" style="margin-top:12px;">+ إضافة تحويل</button></div><div id="opTabTimeline" class="tab-content"><div id="opTimelineList"></div></div><div class="actions-cell admin-only" style="margin-top:20px;border-top:1px solid #eee;padding-top:15px;"><button class="btn btn-secondary" onclick="closeModal('operationDetailsModal');editOperation(currentOpId);">✏️ تعديل</button></div></div></div>
+
+<div id="addInvestorToOpModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>إضافة ممول</h2><button class="close-btn" onclick="closeModal('addInvestorToOpModal')">&times;</button></div><div id="opInvestorValidationWarning"></div><form id="addInvestorToOpForm"><div class="form-group"><label>الممول *</label><select id="newOpInvestorId" required></select></div><div class="form-row"><div class="form-group"><label>المساهمة *</label><input type="number" id="newOpInvestorContribution" step="0.01" required oninput="validateOpInvestorInputs()"></div><div class="form-group profit-field"><label>الربح</label><input type="number" id="newOpInvestorProfit" step="0.01" oninput="validateOpInvestorInputs()"></div></div><button type="submit" class="btn btn-primary btn-block">إضافة</button></form></div></div>
+
+<div id="editOpInvestorModal" class="modal"><div class="modal-content"><div class="modal-header"><h2>تعديل الممول</h2><button class="close-btn" onclick="closeModal('editOpInvestorModal')">&times;</button></div><div id="editOpInvestorValidationWarning"></div><form id="editOpInvestorForm"><input type="hidden" id="editOpInvestorId"><div class="form-row"><div class="form-group"><label>المساهمة *</label><input type="number" id="editOpInvestorContribution" step="0.01" required oninput="validateEditOpInvestorInputs()"></div><div class="form-group profit-field"><label>الربح</label><input type="number" id="editOpInvestorProfit" step="0.01" oninput="validateEditOpInvestorInputs()"></div></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
+
+<div id="investorDetailModal" class="modal"><div class="modal-content large"><div class="modal-header"><h2 id="investorDetailName">تفاصيل الممول</h2><button class="close-btn" onclick="closeModal('investorDetailModal')">&times;</button></div><div class="op-summary-grid" id="investorStatsGrid"></div><h3 style="margin-top:20px;font-size:16px;font-weight:600;border-bottom:2px solid #667eea;padding-bottom:8px;">العمليات</h3><div id="investorOpsList"></div></div></div>
+
+<div id="transferModal" class="modal"><div class="modal-content"><div class="modal-header"><h2 id="transferModalTitle">إضافة تحويل</h2><button class="close-btn" onclick="closeModal('transferModal')">&times;</button></div><div id="transferValidationWarning"></div><form id="transferForm"><input type="hidden" id="transferId"><div class="form-row"><div class="form-group"><label>نوع التحويل *</label><select id="transferType" required onchange="toggleInvestorSelect()"><option value="company_to_client">شركة → عميل</option><option value="client_to_company">عميل → شركة</option><option value="company_to_investor">شركة → ممول</option></select></div><div class="form-group"><label>الغرض *</label><select id="transferPurpose" required><option value="client_funding">تمويل</option><option value="client_repayment">سداد</option><option value="capital_return">إرجاع رأس مال</option><option value="profit_distribution">توزيع أرباح</option><option value="settlement">تسوية</option><option value="other">أخرى</option></select></div></div><div class="form-row" id="investorSelectRow" style="display:none;"><div class="form-group full"><label>الممول *</label><select id="transferInvestorId"></select></div></div><div class="form-row"><div class="form-group"><label>العملية</label><select id="transferOperation"></select></div><div class="form-group"><label>المبلغ *</label><input type="number" id="transferAmount" step="0.01" required></div></div><div class="form-row"><div class="form-group"><label>التاريخ *</label><input type="date" id="transferDate" required></div></div><div class="form-group"><label>ملاحظات</label><textarea id="transferNotes" rows="3"></textarea></div><button type="submit" class="btn btn-primary btn-block">حفظ</button></form></div></div>
 
 <div id="toast" class="toast"></div>
 
 <div id="debugBox">
-<div class="debug-controls">
-<button onclick="toggleDebug()">⏯️ تشغيل/إيقاف</button>
-<button onclick="clearDebugLog()">🗑️ مسح</button>
-<button onclick="copyDebugLog()">📋 نسخ</button>
-</div>
-<h3>🔍 Debug Log <span id="debugStatus" style="color:#4caf50;font-size:12px">[مفعّل]</span></h3>
-<div id="debugContent"></div>
+    <div id="debug-header" onclick="toggleDebugBox()">
+        <h3>🔍 Debug Log <span id="debugStatus" style="color:#4caf50;font-size:12px">[مفعّل]</span> <span style="font-size:10px; color:#888">(اضغط للفتح/الإغلاق)</span></h3>
+        <div class="debug-controls" onclick="event.stopPropagation()">
+            <button onclick="toggleDebug()">⏯️</button>
+            <button onclick="clearDebugLog()">🗑️</button>
+            <button onclick="copyDebugLog()">📋</button>
+        </div>
+    </div>
+    <div id="debugContent"></div>
 </div>
 
-<script src="js/app.js?v=2"></script>
+<script src="js/app.js?v=3"></script>
 </body>
 </html>
