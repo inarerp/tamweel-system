@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Transfers Module (Parties Ledger)
-// Version: 2.0.0
-// Last Updated: 2026-08-02
+// Version: 3.1.0
+// Last Updated: 2026-08-03
 // ============================================================
 //
 // المسؤوليات:
@@ -9,15 +9,15 @@
 // - loadTransfers() - تحميل قائمة التحويلات (Parties Ledger)
 // - openTransferModal() - Modal إضافة/تعديل تحويل
 // - saveTransfer() - حفظ التحويل
-// - deleteTransfer() - حذف التحويل (مع حماية Workflow)
-// - toggleInvestorSelect() - إظهار/إخفاء حقل الممول
-// - Validate قبل الحفظ (قوي + تحذيري)
+// - deleteTransfer() - حذف التحويل
+// - Transfer Type Logic (من → إلى)
+// - Validate قبل الحفظ
 // - Render (قائمة + Modal)
 //
 // يعتمد على:
 // - core.js (APP, runQuery, debug, Constants, etc.)
 // - auth.js (canEdit, canViewProfits, isAdmin, etc.)
-// - calculations.js (calculateClientSummary, calculateInvestorSummary, calculateOperationSummary)
+// - calculations.js (calculateClientSummary, calculateInvestorSummary)
 // - activity.js (window.logActivityToDB)
 // - app.js (showScreen)
 //
@@ -34,7 +34,6 @@ var TRANSFERS_STATE = {
     filter: '',
     records: [],
     
-    // ✅ تحسين 8: فصل Cache إلى Reference و List
     referenceCache: {
         clients: null,
         investors: null,
@@ -48,51 +47,68 @@ var TRANSFERS_STATE = {
 
 
 // ============================================================
-// 2. CONSTANTS - ✅ تحسين 4: خريطة ثابتة بدلاً من if/else
+// 2. CONSTANTS - خريطة أنواع التحويلات
 // ============================================================
 
 /**
- * خريطة أنواع التحويلات إلى party_type و transaction_category
- * يسهل إضافة أنواع جديدة مستقبلاً
+ * خريطة التحويلات المسموحة (من → إلى)
+ * تحدد:
+ * - party_type (من هو الطرف الرئيسي)
+ * - transaction_category (نوع المعاملة تلقائياً)
+ * - transfer_type (النوع القديم للتوافق)
  */
-var TRANSFER_CATEGORY_MAP = Object.freeze({
-    company_to_client: {
+var TRANSFER_FLOW_MAP = Object.freeze({
+    'company_to_client': {
         party_type: 'client',
-        categories: {
-            client_funding: 'client_deposit_in',
-            client_repayment: 'client_use_out',
-            settlement: 'client_adjust',
-            additional_funding: 'client_deposit_in',
-            other: 'client_adjust'
-        }
+        transaction_category: 'client_deposit_in',
+        transfer_type: 'company_to_client',
+        purpose_options: ['client_funding', 'additional_funding', 'settlement', 'other'],
+        label: 'تمويل عميل'
     },
-    client_to_company: {
+    'client_to_company': {
         party_type: 'client',
-        categories: {
-            client_repayment: 'client_use_out',
-            settlement: 'client_adjust',
-            other: 'client_adjust'
-        }
+        transaction_category: 'client_use_out',
+        transfer_type: 'client_to_company',
+        purpose_options: ['client_repayment', 'settlement', 'other'],
+        label: 'سداد من عميل'
     },
-    company_to_investor: {
+    'company_to_investor': {
         party_type: 'investor',
-        categories: {
-            capital_return: 'investor_return_out',
-            profit_distribution: 'investor_profit_out',
-            settlement: 'investor_return_out',
-            other: 'investor_return_out'
-        }
+        transaction_category: 'investor_return_out',
+        transfer_type: 'company_to_investor',
+        purpose_options: ['capital_return', 'profit_distribution', 'settlement', 'other'],
+        label: 'تحويل لممول'
+    },
+    'investor_to_company': {
+        party_type: 'investor',
+        transaction_category: 'investor_capital_in',
+        transfer_type: 'company_to_investor',
+        purpose_options: ['client_funding', 'settlement', 'other'],
+        label: 'إيداع من ممول'
     }
 });
 
 /**
- * ✅ تحسين 6: أنواع التحويلات المرتبطة بـ Workflow (محمية من الحذف)
+ * أنواع التحويلات المرتبطة بـ Workflow (محمية من الحذف)
  */
 var WORKFLOW_TRANSFER_PURPOSES = Object.freeze([
     'client_repayment',
     'capital_return',
     'profit_distribution'
 ]);
+
+/**
+ * أسماء الغرض بالعربية
+ */
+var PURPOSE_TEXT_AR = Object.freeze({
+    client_funding: 'تمويل',
+    client_repayment: 'سداد',
+    capital_return: 'إرجاع رأس مال',
+    profit_distribution: 'توزيع أرباح',
+    settlement: 'تسوية',
+    additional_funding: 'تمويل إضافي',
+    other: 'أخرى'
+});
 
 
 // ============================================================
@@ -121,7 +137,6 @@ async function loadTransfers() {
     showLoading();
     
     try {
-        // تحميل التحويلات بالتوازي مع البيانات المرجعية
         var results = await Promise.all([
             runQuery(
                 function() {
@@ -130,12 +145,10 @@ async function loadTransfers() {
                         .select('id, reference_number, type, purpose, operation_id, client_id, investor_id, amount, transfer_date, notes, party_type, transaction_category, is_archived, created_at')
                         .order('transfer_date', { ascending: false });
                     
-                    // تطبيق الفلتر
                     if (TRANSFERS_STATE.filter) {
                         query = query.eq('party_type', TRANSFERS_STATE.filter);
                     }
                     
-                    // تطبيق البحث
                     if (TRANSFERS_STATE.search) {
                         var searchTerm = '%' + TRANSFERS_STATE.search + '%';
                         query = query.or(
@@ -158,13 +171,9 @@ async function loadTransfers() {
         var investors = results[2] || [];
         var operations = results[3] || [];
         
-        // بناء Indexes
         var indexes = buildTransfersIndexes(clients, investors, operations);
         
-        // ربط التحويلات بالبيانات المرجعية
-        // ✅ تحسين 1: استخدام client_id مباشرة، ثم fallback إلى operation.client_id
         transfers.forEach(function(t) {
-            // العميل: أولاً من client_id المباشر، ثم من العملية
             if (t.client_id && indexes.clientsById[t.client_id]) {
                 t.client = indexes.clientsById[t.client_id];
             } else if (t.operation_id && indexes.operationsById[t.operation_id]) {
@@ -194,9 +203,6 @@ async function loadTransfers() {
     }
 }
 
-/**
- * تحميل العملاء (مع Reference Cache)
- */
 async function loadClientsForTransfers() {
     if (TRANSFERS_STATE.referenceCache.clients) {
         return TRANSFERS_STATE.referenceCache.clients;
@@ -222,9 +228,6 @@ async function loadClientsForTransfers() {
     }
 }
 
-/**
- * تحميل الممولين (مع Reference Cache)
- */
 async function loadInvestorsForTransfers() {
     if (TRANSFERS_STATE.referenceCache.investors) {
         return TRANSFERS_STATE.referenceCache.investors;
@@ -250,9 +253,6 @@ async function loadInvestorsForTransfers() {
     }
 }
 
-/**
- * تحميل العمليات (مع Reference Cache)
- */
 async function loadOperationsForTransfers() {
     if (TRANSFERS_STATE.referenceCache.operations) {
         return TRANSFERS_STATE.referenceCache.operations;
@@ -278,9 +278,6 @@ async function loadOperationsForTransfers() {
     }
 }
 
-/**
- * بناء Indexes للتحويلات
- */
 function buildTransfersIndexes(clients, investors, operations) {
     var clientsById = {};
     var investorsById = {};
@@ -318,11 +315,9 @@ function renderTransfersList() {
     html += '<thead><tr>';
     html += '<th>الرقم</th>';
     html += '<th>التاريخ</th>';
-    html += '<th>النوع</th>';
+    html += '<th>من</th>';
+    html += '<th>إلى</th>';
     html += '<th>الغرض</th>';
-    html += '<th>العميل</th>';
-    html += '<th>الممول</th>';
-    html += '<th>العملية</th>';
     html += '<th>المبلغ</th>';
     html += '<th>ملاحظات</th>';
     if (canEdit()) html += '<th>الإجراءات</th>';
@@ -330,24 +325,33 @@ function renderTransfersList() {
     html += '<tbody>';
     
     TRANSFERS_STATE.records.forEach(function(t) {
-        var clientName = t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : '-';
-        var investorName = t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : '-';
-        var operationName = t.operation ? '<a href="#" data-action="openOperationDetails" data-param="' + t.operation.id + '">' + escapeHtml(t.operation.name) + '</a>' : '-';
+        var fromText = '';
+        var toText = '';
+        
+        if (t.type === 'company_to_client') {
+            fromText = 'الشركة';
+            toText = t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : '-';
+        } else if (t.type === 'client_to_company') {
+            fromText = t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : '-';
+            toText = 'الشركة';
+        } else if (t.type === 'company_to_investor') {
+            fromText = 'الشركة';
+            toText = t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : '-';
+        }
+        
+        var purposeText = PURPOSE_TEXT_AR[t.purpose] || t.purpose || '-';
         
         html += '<tr>';
         html += '<td><strong>' + escapeHtml(t.reference_number || '-') + '</strong></td>';
         html += '<td>' + formatDate(t.transfer_date) + '</td>';
-        html += '<td>' + getTransferTypeText(t.type) + '</td>';
-        html += '<td>' + getPurposeText(t.purpose) + '</td>';
-        html += '<td>' + clientName + '</td>';
-        html += '<td>' + investorName + '</td>';
-        html += '<td>' + operationName + '</td>';
+        html += '<td>' + fromText + '</td>';
+        html += '<td>' + toText + '</td>';
+        html += '<td>' + purposeText + '</td>';
         html += '<td>' + formatMoney(t.amount) + '</td>';
         html += '<td>' + escapeHtml(truncateText(t.notes, 30)) + '</td>';
         
         if (canEdit()) {
             html += '<td class="actions-cell">';
-            // ✅ تحسين 5: زر تعديل + زر حذف
             html += '<button class="btn btn-secondary btn-sm" data-action="editTransfer" data-param="' + t.id + '">تعديل</button>';
             html += '<button class="btn btn-danger btn-sm" data-action="deleteTransfer" data-param="' + t.id + '">حذف</button>';
             html += '</td>';
@@ -363,7 +367,7 @@ function renderTransfersList() {
 
 
 // ============================================================
-// 6. TRANSFER MODAL
+// 6. TRANSFER MODAL LOGIC
 // ============================================================
 
 /**
@@ -379,22 +383,23 @@ async function openTransferModal(transferId) {
     var idEl = document.getElementById('transferId');
     
     if (!titleEl || !idEl) {
-        debug('⚠️ عناصر Modal غير موجودة', 'warning');
+        debug('️ عناصر Modal غير موجودة', 'warning');
         return;
     }
     
-    // تحميل البيانات المرجعية
     await Promise.all([
         loadClientsForTransfers(),
         loadInvestorsForTransfers(),
         loadOperationsForTransfers()
     ]);
     
-    // تعبئة قوائم الـ Select
-    populateTransferSelects();
+    populateFromTypeSelect();
+    populateToTypeSelect();
+    populateOperationsSelect();
+    
+    resetTransferForm();
     
     if (transferId) {
-        // تعديل
         try {
             var result = await runQuery(
                 function() {
@@ -421,18 +426,13 @@ async function openTransferModal(transferId) {
             return;
         }
     } else {
-        // إضافة - تفريغ النموذج
-        resetTransferForm();
+        titleEl.textContent = 'إضافة تحويل';
     }
     
-    // إخفاء التحذير
     var warningEl = document.getElementById('transferValidationWarning');
     if (warningEl) warningEl.innerHTML = '';
     
     openModal('transferModal');
-    
-    // استدعاء toggleInvestorSelect
-    toggleInvestorSelect();
 }
 
 /**
@@ -443,96 +443,349 @@ function editTransfer(transferId) {
 }
 
 /**
- * تعبئة قوائم الـ Select
+ * تعبئة قائمة "من"
  */
-function populateTransferSelects() {
-    // قائمة العمليات (فقط غير المؤرشفة)
-    var operationEl = document.getElementById('transferOperation');
-    if (operationEl && TRANSFERS_STATE.referenceCache.operations) {
-        var options = '<option value="">-- اختر العملية (اختياري) --</option>';
-        TRANSFERS_STATE.referenceCache.operations.forEach(function(op) {
-            if (!op.is_archived) {
-                options += '<option value="' + op.id + '">' + escapeHtml(op.name) + '</option>';
-            }
-        });
-        operationEl.innerHTML = options;
+function populateFromTypeSelect() {
+    var selectEl = document.getElementById('transferFromType');
+    if (!selectEl) {
+        console.error('❌ عنصر transferFromType غير موجود في HTML');
+        return;
     }
     
-    // قائمة الممولين (فقط غير المؤرشفين)
-    var investorEl = document.getElementById('transferInvestorId');
-    if (investorEl && TRANSFERS_STATE.referenceCache.investors) {
-        var options = '<option value="">-- اختر الممول --</option>';
-        TRANSFERS_STATE.referenceCache.investors.forEach(function(inv) {
-            if (!inv.is_archived) {
-                options += '<option value="' + inv.id + '">' + escapeHtml(inv.name) + '</option>';
-            }
-        });
-        investorEl.innerHTML = options;
-    }
+    selectEl.innerHTML = '<option value="">-- اختر المصدر --</option>' +
+        '<option value="company">الشركة</option>' +
+        '<option value="client">عميل</option>' +
+        '<option value="investor">ممول</option>';
 }
 
 /**
- * تعبئة نموذج التحويل
+ * تعبئة قائمة "إلى"
+ */
+function populateToTypeSelect() {
+    var selectEl = document.getElementById('transferToType');
+    if (!selectEl) {
+        console.error('❌ عنصر transferToType غير موجود في HTML');
+        return;
+    }
+    
+    selectEl.innerHTML = '<option value="">-- اختر المستلم --</option>' +
+        '<option value="company">الشركة</option>' +
+        '<option value="client">عميل</option>' +
+        '<option value="investor">ممول</option>';
+}
+
+/**
+ * تعبئة قائمة العمليات
+ */
+function populateOperationsSelect() {
+    var selectEl = document.getElementById('transferOperation');
+    if (!selectEl) {
+        console.error('❌ عنصر transferOperation غير موجود في HTML');
+        return;
+    }
+    
+    if (!TRANSFERS_STATE.referenceCache.operations) return;
+    
+    var options = '<option value="">-- بدون عملية --</option>';
+    TRANSFERS_STATE.referenceCache.operations.forEach(function(op) {
+        if (!op.is_archived) {
+            options += '<option value="' + op.id + '">' + escapeHtml(op.name) + '</option>';
+        }
+    });
+    selectEl.innerHTML = options;
+}
+
+/**
+ * تعبئة قائمة الأطراف الديناميكية
+ */
+function populateEntitySelect(type, selectedId) {
+    var entities = [];
+    var label = '';
+    
+    if (type === 'client') {
+        entities = TRANSFERS_STATE.referenceCache.clients || [];
+        label = 'اختر العميل *';
+    } else if (type === 'investor') {
+        entities = TRANSFERS_STATE.referenceCache.investors || [];
+        label = 'اختر الممول *';
+    }
+    
+    var options = '<option value="">-- اختر --</option>';
+    entities.forEach(function(e) {
+        if (!e.is_archived) {
+            var selected = e.id === selectedId ? ' selected' : '';
+            options += '<option value="' + e.id + '"' + selected + '>' + escapeHtml(e.name) + '</option>';
+        }
+    });
+    
+    return { options: options, label: label };
+}
+
+/**
+ * تحديث الحقول الديناميكية عند تغيير "من" أو "إلى"
+ * ✅ مع Null Checks
+ */
+function updateTransferFields() {
+    var fromTypeEl = document.getElementById('transferFromType');
+    var toTypeEl = document.getElementById('transferToType');
+    
+    if (!fromTypeEl || !toTypeEl) {
+        console.error('❌ عناصر transferFromType أو transferToType غير موجودة');
+        return;
+    }
+    
+    var fromType = fromTypeEl.value;
+    var toType = toTypeEl.value;
+    
+    var fromEntityRow = document.getElementById('transferFromEntityRow');
+    var toEntityRow = document.getElementById('transferToEntityRow');
+    var fromEntitySelect = document.getElementById('transferFromEntity');
+    var toEntitySelect = document.getElementById('transferToEntity');
+    var fromEntityLabel = document.getElementById('transferFromEntityLabel');
+    var toEntityLabel = document.getElementById('transferToEntityLabel');
+    
+    if (fromEntityRow) fromEntityRow.style.display = 'none';
+    if (toEntityRow) toEntityRow.style.display = 'none';
+    if (fromEntitySelect) fromEntitySelect.value = '';
+    if (toEntitySelect) toEntitySelect.value = '';
+    
+    if (fromType && fromType !== 'company') {
+        var fromData = populateEntitySelect(fromType);
+        if (fromEntityLabel) fromEntityLabel.textContent = fromData.label;
+        if (fromEntitySelect) fromEntitySelect.innerHTML = fromData.options;
+        if (fromEntityRow) fromEntityRow.style.display = 'block';
+    }
+    
+    if (toType && toType !== 'company') {
+        var toData = populateEntitySelect(toType);
+        if (toEntityLabel) toEntityLabel.textContent = toData.label;
+        if (toEntitySelect) toEntitySelect.innerHTML = toData.options;
+        if (toEntityRow) toEntityRow.style.display = 'block';
+    }
+    
+    updateTransferSummary(fromType, toType);
+    
+    var fromPartyEl = document.getElementById('transferFromParty');
+    var toPartyEl = document.getElementById('transferToParty');
+    if (fromPartyEl) fromPartyEl.value = fromType;
+    if (toPartyEl) toPartyEl.value = toType;
+}
+
+/**
+ * تحديث ملخص التحويل
+ * ✅ مع Null Checks
+ */
+function updateTransferSummary(fromType, toType) {
+    var summaryEl = document.getElementById('transferSummary');
+    var summaryFrom = document.getElementById('summaryFrom');
+    var summaryTo = document.getElementById('summaryTo');
+    var summaryCategory = document.getElementById('summaryCategory');
+    
+    if (!fromType || !toType) {
+        if (summaryEl) summaryEl.style.display = 'none';
+        return;
+    }
+    
+    var flowKey = fromType + '_to_' + toType;
+    var flow = TRANSFER_FLOW_MAP[flowKey];
+    
+    if (!flow) {
+        if (summaryEl) summaryEl.style.display = 'none';
+        return;
+    }
+    
+    var fromText = fromType === 'company' ? 'الشركة' : (fromType === 'client' ? 'عميل' : 'ممول');
+    var toText = toType === 'company' ? 'الشركة' : (toType === 'client' ? 'عميل' : 'ممول');
+    
+    if (summaryFrom) summaryFrom.textContent = fromText;
+    if (summaryTo) summaryTo.textContent = toText;
+    if (summaryCategory) summaryCategory.textContent = flow.label;
+    
+    if (summaryEl) summaryEl.style.display = 'block';
+    
+    var categoryEl = document.getElementById('transferTransactionCategory');
+    if (categoryEl) categoryEl.value = flow.transaction_category;
+}
+
+/**
+ * تعبئة نموذج التحويل (للتعديل)
+ * ✅ مع Null Checks
  */
 function populateTransferForm(transfer, title) {
-    document.getElementById('transferModalTitle').textContent = title;
-    document.getElementById('transferId').value = transfer.id;
-    document.getElementById('transferType').value = transfer.type || 'company_to_client';
-    document.getElementById('transferPurpose').value = transfer.purpose || 'client_funding';
-    document.getElementById('transferOperation').value = transfer.operation_id || '';
-    document.getElementById('transferInvestorId').value = transfer.investor_id || '';
-    document.getElementById('transferAmount').value = transfer.amount || '';
-    document.getElementById('transferDate').value = formatDateForInput(transfer.transfer_date);
-    document.getElementById('transferNotes').value = transfer.notes || '';
+    var titleEl = document.getElementById('transferModalTitle');
+    if (titleEl) titleEl.textContent = title;
+    
+    var fromType = 'company';
+    var toType = 'company';
+    
+    if (transfer.type === 'company_to_client') {
+        fromType = 'company';
+        toType = 'client';
+    } else if (transfer.type === 'client_to_company') {
+        fromType = 'client';
+        toType = 'company';
+    } else if (transfer.type === 'company_to_investor') {
+        fromType = 'company';
+        toType = 'investor';
+    }
+    
+    var fromTypeEl = document.getElementById('transferFromType');
+    var toTypeEl = document.getElementById('transferToType');
+    if (fromTypeEl) fromTypeEl.value = fromType;
+    if (toTypeEl) toTypeEl.value = toType;
+    
+    updateTransferFields();
+    
+    if (transfer.client_id) {
+        if (fromType === 'client') {
+            var fromEntity = document.getElementById('transferFromEntity');
+            if (fromEntity) fromEntity.value = transfer.client_id;
+        } else if (toType === 'client') {
+            var toEntity = document.getElementById('transferToEntity');
+            if (toEntity) toEntity.value = transfer.client_id;
+        }
+    }
+    
+    if (transfer.investor_id) {
+        if (fromType === 'investor') {
+            var fromEntity = document.getElementById('transferFromEntity');
+            if (fromEntity) fromEntity.value = transfer.investor_id;
+        } else if (toType === 'investor') {
+            var toEntity = document.getElementById('transferToEntity');
+            if (toEntity) toEntity.value = transfer.investor_id;
+        }
+    }
+    
+    var amountEl = document.getElementById('transferAmount');
+    if (amountEl) amountEl.value = transfer.amount || '';
+    
+    var opEl = document.getElementById('transferOperation');
+    if (opEl) opEl.value = transfer.operation_id || '';
+    
+    var dateEl = document.getElementById('transferDate');
+    if (dateEl) dateEl.value = formatDateForInput(transfer.transfer_date);
+    
+    var notesEl = document.getElementById('transferNotes');
+    if (notesEl) notesEl.value = transfer.notes || '';
 }
 
 /**
  * تفريغ نموذج التحويل
+ * ✅ مع Null Checks لمنع الأخطاء
  */
 function resetTransferForm() {
-    document.getElementById('transferModalTitle').textContent = 'إضافة تحويل';
-    document.getElementById('transferId').value = '';
-    document.getElementById('transferType').value = 'company_to_client';
-    document.getElementById('transferPurpose').value = 'client_funding';
-    document.getElementById('transferOperation').value = '';
-    document.getElementById('transferInvestorId').value = '';
-    document.getElementById('transferAmount').value = '';
-    document.getElementById('transferDate').value = getTodayDate();
-    document.getElementById('transferNotes').value = '';
+    var ids = [
+        'transferId',
+        'transferFromType',
+        'transferToType',
+        'transferFromEntity',
+        'transferToEntity',
+        'transferAmount',
+        'transferOperation',
+        'transferNotes',
+        'transferTransactionCategory'
+    ];
+    
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.value = '';
+        } else {
+            console.error('❌ عنصر غير موجود: ' + id);
+        }
+    });
+    
+    var dateEl = document.getElementById('transferDate');
+    if (dateEl) {
+        dateEl.value = getTodayDate();
+    } else {
+        console.error('❌ عنصر transferDate غير موجود');
+    }
+    
+    var fromEntityRow = document.getElementById('transferFromEntityRow');
+    if (fromEntityRow) fromEntityRow.style.display = 'none';
+    
+    var toEntityRow = document.getElementById('transferToEntityRow');
+    if (toEntityRow) toEntityRow.style.display = 'none';
+    
+    var summary = document.getElementById('transferSummary');
+    if (summary) summary.style.display = 'none';
 }
 
-/**
- * جمع بيانات نموذج التحويل
- */
+
+// ============================================================
+// 7. VALIDATION
+// ============================================================
+
 function collectTransferFormData() {
+    var fromTypeEl = document.getElementById('transferFromType');
+    var toTypeEl = document.getElementById('transferToType');
+    var fromEntityEl = document.getElementById('transferFromEntity');
+    var toEntityEl = document.getElementById('transferToEntity');
+    var amountEl = document.getElementById('transferAmount');
+    var opEl = document.getElementById('transferOperation');
+    var dateEl = document.getElementById('transferDate');
+    var notesEl = document.getElementById('transferNotes');
+    var categoryEl = document.getElementById('transferTransactionCategory');
+    
+    var fromType = fromTypeEl ? fromTypeEl.value : '';
+    var toType = toTypeEl ? toTypeEl.value : '';
+    var fromEntity = fromEntityEl ? fromEntityEl.value : '';
+    var toEntity = toEntityEl ? toEntityEl.value : '';
+    
+    var clientId = null;
+    var investorId = null;
+    
+    if (fromType === 'client') clientId = fromEntity;
+    else if (toType === 'client') clientId = toEntity;
+    else if (fromType === 'investor') investorId = fromEntity;
+    else if (toType === 'investor') investorId = toEntity;
+    
     return {
-        id: document.getElementById('transferId').value,
-        type: document.getElementById('transferType').value,
-        purpose: document.getElementById('transferPurpose').value,
-        operationId: document.getElementById('transferOperation').value,
-        investorId: document.getElementById('transferInvestorId').value,
-        amount: document.getElementById('transferAmount').value,
-        transferDate: document.getElementById('transferDate').value,
-        notes: document.getElementById('transferNotes').value.trim()
+        id: document.getElementById('transferId') ? document.getElementById('transferId').value : '',
+        fromType: fromType,
+        toType: toType,
+        clientId: clientId,
+        investorId: investorId,
+        operationId: opEl ? opEl.value : '',
+        amount: amountEl ? amountEl.value : '',
+        transferDate: dateEl ? dateEl.value : '',
+        notes: notesEl ? notesEl.value.trim() : '',
+        transactionCategory: categoryEl ? categoryEl.value : ''
     };
 }
 
-
-// ============================================================
-// 7. VALIDATION - ✅ تحسين 3 + 7
-// ============================================================
-
-/**
- * التحقق من صحة نموذج التحويل (Hard Validation - يمنع الحفظ)
- */
 async function validateTransferForm(formData) {
-    if (isEmpty(formData.type)) {
-        showToast('❌ نوع التحويل مطلوب', 'error');
+    if (isEmpty(formData.fromType)) {
+        showToast('❌ مصدر الأموال مطلوب', 'error');
         return false;
     }
     
-    if (isEmpty(formData.purpose)) {
-        showToast('❌ الغرض مطلوب', 'error');
+    if (isEmpty(formData.toType)) {
+        showToast('❌ الجهة المستلمة مطلوبة', 'error');
+        return false;
+    }
+    
+    if (formData.fromType === formData.toType) {
+        showToast('❌ لا يمكن التحويل من وإلى نفس الطرف', 'error');
+        return false;
+    }
+    
+    var flowKey = formData.fromType + '_to_' + formData.toType;
+    var flow = TRANSFER_FLOW_MAP[flowKey];
+    
+    if (!flow) {
+        showToast('❌ هذا النوع من التحويل غير مسموح', 'error');
+        return false;
+    }
+    
+    if ((formData.fromType === 'client' || formData.fromType === 'investor') && isEmpty(formData.clientId || formData.investorId)) {
+        showToast('❌ يجب اختيار الطرف المصدر', 'error');
+        return false;
+    }
+    
+    if ((formData.toType === 'client' || formData.toType === 'investor') && isEmpty(formData.clientId || formData.investorId)) {
+        showToast(' يجب اختيار الطرف المستلم', 'error');
         return false;
     }
     
@@ -546,379 +799,47 @@ async function validateTransferForm(formData) {
         return false;
     }
     
-    // التحقق من الممول إذا كان التحويل له
-    if (formData.type === 'company_to_investor' && isEmpty(formData.investorId)) {
-        showToast('❌ الممول مطلوب لهذا النوع من التحويلات', 'error');
-        return false;
-    }
-    
-    // ✅ تحسين 3: التحقق من العملية إذا تم اختيارها
-    if (formData.operationId) {
-        var operations = TRANSFERS_STATE.referenceCache.operations || [];
-        var operation = operations.find(function(op) { return op.id === formData.operationId; });
-        
-        if (!operation) {
-            showToast('❌ العملية غير موجودة', 'error');
-            return false;
-        }
-        
-        if (operation.is_archived) {
-            showToast('❌ لا يمكن التحويل من/إلى عملية مؤرشفة', 'error');
-            return false;
-        }
-        
-        if (operation.is_locked && WORKFLOW_TRANSFER_PURPOSES.indexOf(formData.purpose) !== -1) {
-            showToast('❌ لا يمكن إضافة تحويل يؤثر على عملية مقفلة', 'error');
-            return false;
-        }
-        
-        if (operation.status === STATUS.CANCELLED) {
-            showToast('❌ لا يمكن التحويل من/إلى عملية ملغاة', 'error');
-            return false;
-        }
-    }
-    
-    // ✅ تحسين 3: التحقق من الممول إذا تم اختياره
-    if (formData.investorId) {
-        var investors = TRANSFERS_STATE.referenceCache.investors || [];
-        var investor = investors.find(function(inv) { return inv.id === formData.investorId; });
-        
-        if (!investor) {
-            showToast('❌ الممول غير موجود', 'error');
-            return false;
-        }
-        
-        if (investor.is_archived) {
-            showToast('❌ لا يمكن التحويل إلى ممول مؤرشف', 'error');
-            return false;
-        }
-    }
-    
-    // ✅ تحسين 3: التحقق من توافق نوع التحويل مع العملية
-    if (formData.operationId && formData.type === 'company_to_investor') {
-        // التحويل للممول يجب أن يكون مرتبطاً بعملية
-        // (لأن الممول مشارك في عملية معينة)
-        // هذا تحقق اختياري - يمكن إزالته إذا كان النظام يسمح بتحويلات عامة
-    }
-    
     return true;
 }
 
-/**
- * ✅ تحسين 7: Validation تحذيري (Warning فقط - لا يمنع الحفظ)
- * يعرض تحذيرات للمستخدم لكن يسمح بالحفظ
- */
-async function getTransferWarnings(formData) {
-    var warnings = [];
-    var amount = parseFloat(formData.amount);
-    
-    // تحميل البيانات المطلوبة للحسابات
-    var data = await loadTransfersCalculationsData(formData);
-    
-    // ✅ تحسين 7: إذا كان مبلغ التحويل أكبر من قيمة العملية
-    if (formData.operationId && data.operation) {
-        if (amount > data.operation.amount) {
-            warnings.push('⚠️ مبلغ التحويل (' + formatMoney(amount) + ') أكبر من قيمة العملية (' + formatMoney(data.operation.amount) + ')');
-        }
-    }
-    
-    // ✅ تحسين 7: إذا كان أكبر من رأس المال المتبقي (للممول)
-    if (formData.investorId && data.investorSummary) {
-        if (formData.purpose === 'capital_return' && amount > data.investorSummary.capitalPending) {
-            warnings.push('⚠️ المبلغ (' + formatMoney(amount) + ') أكبر من رأس المال المتاح للإرجاع (' + formatMoney(data.investorSummary.capitalPending) + ')');
-        }
-        
-        if (formData.purpose === 'profit_distribution' && amount > data.investorSummary.outstandingProfit) {
-            warnings.push('⚠️ مبلغ توزيع الأرباح (' + formatMoney(amount) + ') أكبر من الأرباح المستحقة (' + formatMoney(data.investorSummary.outstandingProfit) + ')');
-        }
-    }
-    
-    // ✅ تحسين 7: إذا كان السداد أكبر من المتبقي للعميل
-    if (formData.operationId && data.operationSummary && formData.purpose === 'client_repayment') {
-        var remainingToRepay = data.operation.amount - data.operationSummary.clientRepaid;
-        if (amount > remainingToRepay) {
-            warnings.push('⚠️ مبلغ السداد (' + formatMoney(amount) + ') أكبر من المتبقي (' + formatMoney(remainingToRepay) + ')');
-        }
-    }
-    
-    return warnings;
-}
-
-/**
- * تحميل البيانات المطلوبة للحسابات التحذيرية
- */
-async function loadTransfersCalculationsData(formData) {
-    var data = {
-        operation: null,
-        operationSummary: null,
-        investorSummary: null
-    };
-    
-    try {
-        // تحميل العملية
-        if (formData.operationId) {
-            var opResult = await runQuery(
-                function() {
-                    return APP.supabase
-                        .from('operations')
-                        .select('*')
-                        .eq('id', formData.operationId)
-                        .single();
-                },
-                { context: 'loadTransfersCalculationsData-op', throwError: false }
-            );
-            data.operation = opResult.data;
-            
-            if (data.operation) {
-                // تحميل بيانات العملية للحساب
-                var relatedResults = await Promise.all([
-                    runQuery(
-                        function() {
-                            return APP.supabase
-                                .from('operation_investors')
-                                .select('id, operation_id, investor_id, contribution, profit')
-                                .eq('operation_id', formData.operationId);
-                        },
-                        { context: 'loadTransfersCalculationsData-opInv', throwError: false }
-                    ),
-                    runQuery(
-                        function() {
-                            return APP.supabase
-                                .from('transfers')
-                                .select('id, operation_id, investor_id, purpose, amount')
-                                .eq('operation_id', formData.operationId);
-                        },
-                        { context: 'loadTransfersCalculationsData-trans', throwError: false }
-                    ),
-                    runQuery(
-                        function() {
-                            return APP.supabase
-                                .from('operations')
-                                .select('id, status');
-                        },
-                        { context: 'loadTransfersCalculationsData-ops', throwError: false }
-                    )
-                ]);
-                
-                var opInv = relatedResults[0].data || [];
-                var transfers = relatedResults[1].data || [];
-                var operations = relatedResults[2].data || [];
-                
-                var indexes = {
-                    operationsById: {},
-                    transfersByOperation: {},
-                    opInvestorsByOperation: {},
-                    transfersByInvestor: {},
-                    opInvestorsByInvestor: {}
-                };
-                
-                operations.forEach(function(op) { indexes.operationsById[op.id] = op; });
-                
-                transfers.forEach(function(t) {
-                    if (t.operation_id) {
-                        if (!indexes.transfersByOperation[t.operation_id]) {
-                            indexes.transfersByOperation[t.operation_id] = [];
-                        }
-                        indexes.transfersByOperation[t.operation_id].push(t);
-                    }
-                    if (t.investor_id) {
-                        if (!indexes.transfersByInvestor[t.investor_id]) {
-                            indexes.transfersByInvestor[t.investor_id] = [];
-                        }
-                        indexes.transfersByInvestor[t.investor_id].push(t);
-                    }
-                });
-                
-                opInv.forEach(function(oi) {
-                    if (!indexes.opInvestorsByOperation[oi.operation_id]) {
-                        indexes.opInvestorsByOperation[oi.operation_id] = [];
-                    }
-                    indexes.opInvestorsByOperation[oi.operation_id].push(oi);
-                    
-                    if (!indexes.opInvestorsByInvestor[oi.investor_id]) {
-                        indexes.opInvestorsByInvestor[oi.investor_id] = [];
-                    }
-                    indexes.opInvestorsByInvestor[oi.investor_id].push(oi);
-                });
-                
-                var calcData = {
-                    operations: operations,
-                    transfers: transfers,
-                    operationInvestors: opInv,
-                    indexes: indexes
-                };
-                
-                data.operationSummary = calculateOperationSummary(formData.operationId, calcData);
-            }
-        }
-        
-        // تحميل ملخص الممول
-        if (formData.investorId) {
-            var invResults = await Promise.all([
-                runQuery(
-                    function() {
-                        return APP.supabase
-                            .from('operation_investors')
-                            .select('id, operation_id, investor_id, contribution, profit')
-                            .eq('investor_id', formData.investorId);
-                    },
-                    { context: 'loadTransfersCalculationsData-invOpInv', throwError: false }
-                ),
-                runQuery(
-                    function() {
-                        return APP.supabase
-                            .from('transfers')
-                            .select('id, investor_id, purpose, amount')
-                            .eq('investor_id', formData.investorId);
-                    },
-                    { context: 'loadTransfersCalculationsData-invTrans', throwError: false }
-                ),
-                runQuery(
-                    function() {
-                        return APP.supabase
-                            .from('operations')
-                            .select('id, status');
-                    },
-                    { context: 'loadTransfersCalculationsData-invOps', throwError: false }
-                )
-            ]);
-            
-            var invOpInv = invResults[0].data || [];
-            var invTransfers = invResults[1].data || [];
-            var invOperations = invResults[2].data || [];
-            
-            var invIndexes = {
-                operationsById: {},
-                opInvestorsByInvestor: {},
-                transfersByInvestor: {}
-            };
-            
-            invOperations.forEach(function(op) { invIndexes.operationsById[op.id] = op; });
-            
-            invOpInv.forEach(function(oi) {
-                if (!invIndexes.opInvestorsByInvestor[oi.investor_id]) {
-                    invIndexes.opInvestorsByInvestor[oi.investor_id] = [];
-                }
-                invIndexes.opInvestorsByInvestor[oi.investor_id].push(oi);
-            });
-            
-            invTransfers.forEach(function(t) {
-                if (t.investor_id) {
-                    if (!invIndexes.transfersByInvestor[t.investor_id]) {
-                        invIndexes.transfersByInvestor[t.investor_id] = [];
-                    }
-                    invIndexes.transfersByInvestor[t.investor_id].push(t);
-                }
-            });
-            
-            var invCalcData = {
-                operations: invOperations,
-                transfers: invTransfers,
-                operationInvestors: invOpInv,
-                indexes: invIndexes
-            };
-            
-            data.investorSummary = calculateInvestorSummary(formData.investorId, invCalcData);
-        }
-        
-    } catch (err) {
-        debug('⚠️ خطأ في loadTransfersCalculationsData: ' + err.message, 'warning');
-    }
-    
-    return data;
-}
-
 
 // ============================================================
-// 8. TOGGLE INVESTOR SELECT
+// 8. SAVE TRANSFER
 // ============================================================
 
-/**
- * ✅ إظهار/إخفاء حقل الممول حسب نوع التحويل
- */
-function toggleInvestorSelect() {
-    var typeEl = document.getElementById('transferType');
-    var investorRow = document.getElementById('investorSelectRow');
-    
-    if (!typeEl || !investorRow) return;
-    
-    var type = typeEl.value;
-    
-    if (type === 'company_to_investor') {
-        investorRow.style.display = 'flex';
-    } else {
-        investorRow.style.display = 'none';
-        document.getElementById('transferInvestorId').value = '';
-    }
-}
-
-
-// ============================================================
-// 9. SAVE TRANSFER
-// ============================================================
-
-/**
- * حفظ التحويل (إضافة أو تعديل)
- */
 async function saveTransfer() {
     if (!canEdit()) {
-        showToast('❌ لا توجد صلاحية', 'error');
+        showToast(' لا توجد صلاحية', 'error');
         return;
     }
     
-    // جمع البيانات
     var formData = collectTransferFormData();
     
-    // التحقق الصارم
     var isValid = await validateTransferForm(formData);
     if (!isValid) {
         return;
     }
     
-    // ✅ تحسين 7: Validation تحذيري
-    var warnings = await getTransferWarnings(formData);
-    if (warnings.length > 0) {
-        var warningMessage = '⚠️ تحذيرات:\n\n' + warnings.join('\n') + '\n\nهل تريد المتابعة؟';
-        if (!confirmAction(warningMessage)) {
-            return;
-        }
-    }
-    
-    // ✅ تحسين 4: استخدام TRANSFER_CATEGORY_MAP بدلاً من if/else
-    var categoryConfig = TRANSFER_CATEGORY_MAP[formData.type];
-    var partyType = categoryConfig ? categoryConfig.party_type : '';
-    var transactionCategory = categoryConfig && categoryConfig.categories 
-        ? (categoryConfig.categories[formData.purpose] || '') 
-        : '';
-    
-    // ✅ تحسين 1: تحديد client_id
-    var clientId = null;
-    if (formData.operationId) {
-        var operations = TRANSFERS_STATE.referenceCache.operations || [];
-        var operation = operations.find(function(op) { return op.id === formData.operationId; });
-        if (operation) {
-            clientId = operation.client_id;
-        }
-    }
+    var flowKey = formData.fromType + '_to_' + formData.toType;
+    var flow = TRANSFER_FLOW_MAP[flowKey];
     
     var data = {
-        type: formData.type,
-        purpose: formData.purpose,
+        type: flow.transfer_type,
+        purpose: flow.purpose_options[0],
         operation_id: formData.operationId || null,
-        client_id: clientId,  // ✅ تحسين 1
+        client_id: formData.clientId || null,
         investor_id: formData.investorId || null,
         amount: parseFloat(formData.amount),
         transfer_date: formData.transferDate,
         notes: formData.notes || null,
-        party_type: partyType,
-        transaction_category: transactionCategory
+        party_type: flow.party_type,
+        transaction_category: flow.transaction_category
     };
     
     showLoading();
     
     try {
         if (formData.id) {
-            // تعديل
             var oldResult = await runQuery(
                 function() {
                     return APP.supabase.from('transfers').select('*').eq('id', formData.id).single();
@@ -937,7 +858,7 @@ async function saveTransfer() {
                 window.logActivityToDB(
                     'تعديل تحويل', 'transfer', formData.id,
                     JSON.stringify(oldResult.data), JSON.stringify(data),
-                    'Amount: ' + data.amount + ', Purpose: ' + data.purpose, 'update'
+                    'From: ' + formData.fromType + ' → To: ' + formData.toType + ', Amount: ' + data.amount, 'update'
                 );
             }
             
@@ -945,7 +866,6 @@ async function saveTransfer() {
             showToast('تم تحديث التحويل', 'success');
             
         } else {
-            // إضافة
             var result = await runQuery(
                 function() {
                     return APP.supabase.from('transfers').insert(data).select();
@@ -958,7 +878,7 @@ async function saveTransfer() {
                     window.logActivityToDB(
                         'إضافة تحويل', 'transfer', result.data[0].id,
                         null, JSON.stringify(data),
-                        'Amount: ' + data.amount + ', Purpose: ' + data.purpose + ', Ref: ' + (result.data[0].reference_number || ''),
+                        'From: ' + formData.fromType + ' → To: ' + formData.toType + ', Amount: ' + data.amount + ', Ref: ' + (result.data[0].reference_number || ''),
                         'create'
                     );
                 }
@@ -969,8 +889,6 @@ async function saveTransfer() {
         }
         
         closeModal('transferModal');
-        
-        // ✅ تحسين 2 + 8: إعادة تحميل القائمة فقط (بدون مسح Reference Cache)
         clearTransfersListCache();
         loadTransfers();
         
@@ -984,20 +902,15 @@ async function saveTransfer() {
 
 
 // ============================================================
-// 10. DELETE TRANSFER - ✅ تحسين 6
+// 9. DELETE TRANSFER
 // ============================================================
 
-/**
- * حذف تحويل
- * مع حماية التحويلات المرتبطة بـ Workflow
- */
 async function deleteTransfer(transferId) {
     if (!canEdit()) {
         showToast('❌ لا توجد صلاحية', 'error');
         return;
     }
     
-    // ✅ تحسين 6: التحقق من التحويل قبل الحذف
     var transfer = TRANSFERS_STATE.records.find(function(t) { return t.id === transferId; });
     
     if (!transfer) {
@@ -1005,11 +918,10 @@ async function deleteTransfer(transferId) {
         return;
     }
     
-    // ✅ تحسين 6: تحذير خاص للتحويلات المرتبطة بـ Workflow
     if (WORKFLOW_TRANSFER_PURPOSES.indexOf(transfer.purpose) !== -1) {
         var warningMessage = '⚠️ تحذير:\n\n' +
             'هذا التحويل مرتبط بسير العمل:\n' +
-            '• الغرض: ' + getPurposeText(transfer.purpose) + '\n' +
+            '• الغرض: ' + (PURPOSE_TEXT_AR[transfer.purpose] || transfer.purpose) + '\n' +
             '• المبلغ: ' + formatMoney(transfer.amount) + '\n\n' +
             'حذف هذا التحويل قد يؤثر على:\n' +
             '• أرصدة العملاء/الممولين\n' +
@@ -1021,7 +933,6 @@ async function deleteTransfer(transferId) {
             return;
         }
     } else {
-        // تأكيد عادي
         if (!confirmDelete('هذا التحويل')) {
             return;
         }
@@ -1048,14 +959,13 @@ async function deleteTransfer(transferId) {
             window.logActivityToDB(
                 'حذف تحويل', 'transfer', transferId,
                 JSON.stringify(oldResult.data), null,
-                'Amount: ' + (oldResult.data ? oldResult.data.amount : '') + ', Purpose: ' + (oldResult.data ? oldResult.data.purpose : ''), 'delete'
+                'Amount: ' + (oldResult.data ? oldResult.data.amount : ''), 'delete'
             );
         }
         
         debug('✅ تم حذف التحويل', 'success');
         showToast('تم حذف التحويل', 'success');
         
-        // ✅ تحسين 2 + 8: إعادة تحميل القائمة فقط
         clearTransfersListCache();
         loadTransfers();
         
@@ -1069,13 +979,9 @@ async function deleteTransfer(transferId) {
 
 
 // ============================================================
-// 11. CACHE MANAGEMENT - ✅ تحسين 8
+// 10. CACHE MANAGEMENT
 // ============================================================
 
-/**
- * ✅ تحسين 8: مسح Reference Cache فقط
- * يُستدعى عند تغيير البيانات المرجعية (Clients/Investors/Operations)
- */
 function clearTransfersReferenceCache() {
     TRANSFERS_STATE.referenceCache.clients = null;
     TRANSFERS_STATE.referenceCache.investors = null;
@@ -1083,19 +989,12 @@ function clearTransfersReferenceCache() {
     debug('🗑️ تم مسح Reference Cache للتحويلات', 'info');
 }
 
-/**
- * ✅ تحسين 8: مسح List Cache فقط
- * يُستدعى عند تغيير التحويلات نفسها
- */
 function clearTransfersListCache() {
     TRANSFERS_STATE.listCache.records = null;
     TRANSFERS_STATE.listCache.lastLoad = null;
     debug('🗑️ تم مسح List Cache للتحويلات', 'info');
 }
 
-/**
- * مسح كل الـ Cache (استخدام نادر)
- */
 function clearAllTransfersCache() {
     clearTransfersReferenceCache();
     clearTransfersListCache();
@@ -1104,7 +1003,7 @@ function clearAllTransfersCache() {
 
 
 // ============================================================
-// 12. SEARCH & FILTER
+// 11. SEARCH & FILTER
 // ============================================================
 
 function searchTransfers(searchTerm) {
