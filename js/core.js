@@ -1,4 +1,3 @@
-alert('core.js تم تحميله');
 // ============================================================
 // نظام إدارة التمويل - Core Module
 // Version: 2.0.0
@@ -174,9 +173,6 @@ function registerScreenLoader(screenId, loaderFunction) {
 // ============================================================
 // 4. GLOBAL STATE (APP Object)
 // ============================================================
-// ملاحظة: userRole و userPermission يبدأان بـ null
-// يتم تعيينهما فقط بعد التحقق من user_profiles في auth.js
-// ============================================================
 
 var APP = {
     supabase: null,
@@ -244,8 +240,6 @@ var debugMessages = [];
 
 /**
  * نظام Debug المرن - يدعم String أو Object
- * @param {string|Object} input - الرسالة أو الكائن
- * @param {string} type - نوع الرسالة (info, success, warning, error)
  */
 function debug(input, type) {
     type = type || 'info';
@@ -448,7 +442,6 @@ function addMonths(date, months) {
     var originalDay = result.getDate();
     result.setMonth(result.getMonth() + months);
     
-    // Last Day of Month
     if (result.getDate() !== originalDay) {
         result.setDate(0);
     }
@@ -533,10 +526,6 @@ function truncateText(text, maxLength) {
 // 7.5 Modal Manager (موحد)
 // ------------------------------------------------------------
 
-/**
- * فتح Modal مع منع التداخل
- * يغلق أي Modal مفتوح قبل فتح الجديد
- */
 function openModal(id) {
     if (APP.currentModal && APP.currentModal !== id) {
         var currentEl = document.getElementById(APP.currentModal);
@@ -550,9 +539,6 @@ function openModal(id) {
     }
 }
 
-/**
- * إغلاق Modal
- */
 function closeModal(id) {
     var el = document.getElementById(id);
     if (el) {
@@ -563,9 +549,6 @@ function closeModal(id) {
     }
 }
 
-/**
- * إغلاق جميع الـ Modals
- */
 function closeAllModals() {
     var modals = document.querySelectorAll('.modal.active');
     for (var i = 0; i < modals.length; i++) {
@@ -668,14 +651,21 @@ function showLoading() {
     var overlay = document.getElementById('loadingOverlay');
     if (overlay) {
         overlay.style.display = 'flex';
+        overlay.style.visibility = 'visible';
+        overlay.style.opacity = '1';
     }
 }
 
+/**
+ * ✅ تعديل: إخفاء الـ Loading Overlay بشكل كامل
+ */
 function hideLoading() {
     APP.isLoading = false;
     var overlay = document.getElementById('loadingOverlay');
     if (overlay) {
         overlay.style.display = 'none';
+        overlay.style.visibility = 'hidden';
+        overlay.style.opacity = '0';
     }
 }
 
@@ -715,14 +705,6 @@ function enableButton(buttonId) {
 // 9. SUPABASE HELPERS
 // ============================================================
 
-/**
- * تنفيذ استعلام Supabase مع معالجة الأخطاء الموحدة
- * @param {Function} queryFn - دالة الاستعلام
- * @param {string|Object} options - سياق العملية أو خيارات متقدمة
- * @param {string} options.context - سياق العملية
- * @param {boolean} options.throwError - هل نرمي الخطأ أم نرجعه؟
- * @returns {Promise<Object>} - { data, error }
- */
 async function runQuery(queryFn, options) {
     if (typeof options === 'string') {
         options = { context: options, throwError: false };
@@ -767,12 +749,6 @@ async function runQuery(queryFn, options) {
     }
 }
 
-/**
- * معالجة أخطاء Supabase الموحدة
- * @param {Object} error - كائن الخطأ
- * @param {string} context - سياق العملية
- * @returns {string} - رسالة خطأ مفهومة للمستخدم
- */
 function handleSupabaseError(error, context) {
     context = context || 'العملية';
     
@@ -805,10 +781,6 @@ function handleSupabaseError(error, context) {
     return userMessage;
 }
 
-/**
- * التحقق من وجود Supabase Client
- * @returns {boolean}
- */
 function isSupabaseReady() {
     if (!APP.supabase) {
         debug('❌ Supabase Client غير مهيأ', 'error');
