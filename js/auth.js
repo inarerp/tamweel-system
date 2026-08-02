@@ -622,8 +622,18 @@ function showApp() {
     }
     
     debug('✅ التطبيق جاهز', 'success');
+    
+    // ✅ إخفاء الـ Loading Overlay بعد 3 ثواني كـ fallback
+    setTimeout(function() {
+        var overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+            overlay.style.visibility = 'hidden';
+            overlay.style.opacity = '0';
+        }
+        debug('🔒 تم إخفاء Loading (fallback)', 'info');
+    }, 3000);
 }
-
 
 // ============================================================
 // 8. INITIALIZATION (يُستدعى من app.js)
