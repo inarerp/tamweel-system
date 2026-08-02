@@ -1,3 +1,58 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة التمويل</title>
+    
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- ✅ INLINE STYLES - حل جذري -->
+    <style>
+        /* إخفاء التطبيق بالكامل */
+        #appContainer {
+            display: none !important;
+        }
+        
+        /* إظهار شاشة الدخول فقط */
+        #loginScreen {
+            display: flex !important;
+        }
+        
+        /* إخفاء جميع الشاشات */
+        .screen {
+            display: none !important;
+        }
+        
+        /* إظهار الشاشة النشطة فقط */
+        .screen.active {
+            display: block !important;
+        }
+        
+        /* Debug Box */
+        #debugBox {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 50px;
+            overflow: hidden;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: monospace;
+            font-size: 12px;
+            border-top: 3px solid #007acc;
+            z-index: 9999;
+        }
+        
+        #debugBox.expanded {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
