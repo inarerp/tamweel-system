@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - Auth Module
-// Version: 1.1.0
+// Version: 2.0.0
 // Last Updated: 2026-08-02
 // ============================================================
 //
@@ -10,15 +10,18 @@
 // - User Profile Loading
 // - Permissions Logic
 // - applyPermissions()
-// - showApp() (بعد التحقق من الصلاحيات)
-// - clearUserState() (تنظيف حالة التطبيق)
+// - showApp()
+// - clearUserState()
+// - initAuth() (يُستدعى من app.js)
 //
 // يعتمد على:
-// - core.js (APP, runQuery, debug, Constants, showToast, etc.)
+// - core.js (APP, runQuery, debug, Constants, etc.)
 //
 // لا يعتمد على:
 // - activity.js (مستقل تماماً - يستخدم window.logActivityToDB
 //                فقط إذا كانت موجودة، بدون Wrapper)
+//
+// ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
 // ============================================================
 
 
@@ -52,7 +55,7 @@ function clearUserState() {
 
 /**
  * تسجيل الدخول
- * يُستدعى من زر تسجيل الدخول في شاشة Login
+ * يُستدعى من data-action="handleLoginClick"
  */
 async function handleLoginClick() {
     debug('🔘 تم الضغط على زر تسجيل الدخول', 'success');
@@ -105,7 +108,7 @@ async function handleLoginClick() {
     setButtonLoading('loginBtn', true);
     
     debug('📧 Email: ' + email, 'info');
-    debug('🔄 جاري استدعاء signInWithPassword...', 'info');
+    debug('🔄 جاري تسجيل الدخول...', 'info');
     
     try {
         var result = await runQuery(
@@ -131,7 +134,8 @@ async function handleLoginClick() {
                 APP.currentUser.id,
                 null,
                 null,
-                'User: ' + APP.currentUser.email
+                'User: ' + APP.currentUser.email,
+                'login'
             );
         }
         
@@ -141,8 +145,8 @@ async function handleLoginClick() {
         if (profileLoaded) {
             showApp();
         } else {
-            // فشل تحميل الملف الشخصي - تنظيف الحالة وتسجيل خروج
-            debug('❌ فشل تحميل الملف الشخصي - تسجيل خروج', 'error');
+            // فشل تحميل الملف الشخصي - تنظيف الحالة
+            debug('❌ فشل تحميل الملف الشخصي', 'error');
             clearUserState();
             
             if (errorMsg) {
@@ -172,6 +176,7 @@ async function handleLoginClick() {
 
 /**
  * تسجيل الخروج
+ * يُستدعى من data-action="doLogout"
  */
 async function doLogout() {
     debug('🚪 جاري تسجيل الخروج...', 'info');
@@ -184,7 +189,8 @@ async function doLogout() {
             APP.currentUser.id,
             null,
             null,
-            'User: ' + APP.currentUser.email
+            'User: ' + APP.currentUser.email,
+            'logout'
         );
     }
     
@@ -215,7 +221,7 @@ async function doLogout() {
 
 /**
  * التحقق من الجلسة الحالية عند تحميل الصفحة
- * يُستدعى من app.js عند بدء التشغيل
+ * يُستدعى من app.js
  */
 async function checkSession() {
     debug('🔍 جاري التحقق من الجلسة...', 'info');
@@ -263,7 +269,7 @@ async function checkSession() {
 
 /**
  * الاستماع لأحداث Auth (تغيير الجلسة)
- * يُستدعى من app.js عند بدء التشغيل
+ * يُستدعى من initAuth()
  */
 function registerAuthListener() {
     if (!isSupabaseReady()) return;
@@ -474,14 +480,14 @@ function applyNavigationPermissions() {
     var navMyAccount = document.querySelector('.nav-myaccount');
     var navActivity = document.querySelector('.nav-activity');
     
-    // Admin: يرى كل شيء
+    // Admin بدون حساب شخصي: يرى كل شيء عدا "حسابي"
     if (isAdmin() && !hasPersonalAccount()) {
         if (navActivity) navActivity.style.display = 'inline-block';
         if (navMyAccount) navMyAccount.style.display = 'none';
         return;
     }
     
-    // Admin مع حساب شخصي: يرى كل شيء + حسابي
+    // Admin مع حساب شخصي: يرى كل شيء + "حسابي"
     if (isAdmin() && hasPersonalAccount()) {
         if (navActivity) navActivity.style.display = 'inline-block';
         if (navMyAccount) navMyAccount.style.display = 'inline-block';
@@ -582,17 +588,19 @@ function showApp() {
 
 
 // ============================================================
-// 8. INITIALIZATION
+// 8. INITIALIZATION (يُستدعى من app.js)
 // ============================================================
 
-debug('🚀 بدأ تحميل auth.js', 'success');
-
-// تسجيل Auth Listener عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', function() {
+/**
+ * تهيئة وحدة Auth
+ * يُستدعى من app.js عند DOMContentLoaded
+ */
+function initAuth() {
+    debug('🔐 بدء تهيئة auth.js', 'info');
     registerAuthListener();
-});
+    debug('✅ auth.js جاهز', 'success');
+}
 
-debug('✅ auth.js جاهز', 'success');
 
 // ============================================================
 // END OF AUTH.JS
