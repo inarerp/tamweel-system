@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - Activity Log Module
-// Version: 1.1.0
+// Version: 2.0.0
 // Last Updated: 2026-08-02
 // ============================================================
 //
@@ -12,12 +12,15 @@
 // - فلاتر: مستخدم / نوع كيان / نوع إجراء / فترة زمنية / بحث عام
 // - تنقل للكيانات المرتبطة (Event Delegation)
 // - تمييز بصري لأنواع الإجراءات
+// - initActivity() (يُستدعى من app.js)
 //
 // يعتمد على:
 // - core.js (APP, runQuery, debug, Constants, debounce)
 //
 // يُصدّر:
 // - window.logActivityToDB (يستخدمه auth.js وباقي الشاشات)
+//
+// ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
 // ============================================================
 
 
@@ -386,6 +389,16 @@ function bindActivityEvents() {
                 navigateToEntity(entityType, entityId);
             }
         }
+        
+        // أزرار الـ Pagination
+        var pageBtn = target.closest('.activity-page-btn');
+        if (pageBtn) {
+            var page = parseInt(pageBtn.getAttribute('data-page'));
+            if (!isNaN(page)) {
+                event.preventDefault();
+                changePage(page);
+            }
+        }
     };
     
     container.addEventListener('click', container._activityListener);
@@ -600,7 +613,6 @@ function navigateToEntity(entityType, entityId) {
 
 /**
  * تحميل خيارات الفلاتر (قائمة المستخدمين الفريدة + أنواع الإجراءات)
- * يستخدم SELECT DISTINCT لتجنب تحميل آلاف السجلات
  */
 async function loadFilterOptions() {
     debug('🔧 جاري تحميل خيارات الفلاتر...', 'info');
@@ -608,15 +620,14 @@ async function loadFilterOptions() {
     if (!isSupabaseReady()) return;
     
     try {
-        // تحميل قائمة المستخدمين الفريدة باستخدام RPC أو DISTINCT
-        // نستخدم استعلام محسّن مع limit لتجنب التحميل الزائد
+        // تحميل قائمة المستخدمين الفريدة
         var usersResult = await runQuery(
             function() {
                 return APP.supabase
                     .from('activity_logs')
                     .select('user_email')
                     .not('user_email', 'is', null)
-                    .limit(1000) // حد أقصى 1000 سجل للتحليل
+                    .limit(1000)
                     .order('user_email');
             },
             { context: 'loadFilterOptions-users', throwError: false }
@@ -676,57 +687,21 @@ async function loadFilterOptions() {
     }
 }
 
+
+// ============================================================
+// 11. INITIALIZATION (يُستدعى من app.js)
+// ============================================================
+
 /**
- * دالة بديلة لاستخدام RPC (إذا تم إنشاء Function في Supabase)
- * يمكن تفعيلها لاحقاً عند الحاجة للأداء الأفضل
+ * تهيئة وحدة Activity Log
+ * يُستدعى من app.js عند DOMContentLoaded
  */
-async function loadUniqueUsersViaRPC() {
-    if (!isSupabaseReady()) return;
-    
-    try {
-        // SQL Function مقترح:
-        // CREATE OR REPLACE FUNCTION get_unique_activity_users()
-        // RETURNS TABLE(user_email TEXT) AS $$
-        //     SELECT DISTINCT user_email FROM activity_logs 
-        //     WHERE user_email IS NOT NULL
-        //     ORDER BY user_email;
-        // $$ LANGUAGE sql;
-        
-        var result = await runQuery(
-            function() {
-                return APP.supabase.rpc('get_unique_activity_users');
-            },
-            { context: 'loadUniqueUsersViaRPC', throwError: false }
-        );
-        
-        if (result.data) {
-            var userSelect = document.getElementById('activityFilterUser');
-            if (userSelect) {
-                var options = '<option value="">جميع المستخدمين</option>';
-                result.data.forEach(function(row) {
-                    options += '<option value="' + escapeHtml(row.user_email) + '">' + escapeHtml(row.user_email) + '</option>';
-                });
-                userSelect.innerHTML = options;
-            }
-        }
-    } catch (err) {
-        debug('⚠️ RPC غير متاح - استخدام البديل', 'warning');
-    }
+function initActivity() {
+    debug('📜 بدء تهيئة activity.js', 'info');
+    loadFilterOptions();
+    debug('✅ activity.js جاهز', 'success');
 }
 
-
-// ============================================================
-// 11. INITIALIZATION
-// ============================================================
-
-debug('🚀 بدأ تحميل activity.js', 'success');
-
-// تحميل خيارات الفلاتر عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', function() {
-    loadFilterOptions();
-});
-
-debug('✅ activity.js جاهز', 'success');
 
 // ============================================================
 // END OF ACTIVITY.JS
