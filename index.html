@@ -1,58 +1,3 @@
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام إدارة التمويل</title>
-    
-    <!-- Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <!-- Stylesheet -->
-    <link rel="stylesheet" href="css/style.css">
-    
-    <!-- ✅ INLINE STYLES - حل جذري -->
-    <style>
-        /* إخفاء التطبيق بالكامل */
-        #appContainer {
-            display: none !important;
-        }
-        
-        /* إظهار شاشة الدخول فقط */
-        #loginScreen {
-            display: flex !important;
-        }
-        
-        /* إخفاء جميع الشاشات */
-        .screen {
-            display: none !important;
-        }
-        
-        /* إظهار الشاشة النشطة فقط */
-        .screen.active {
-            display: block !important;
-        }
-        
-        /* Debug Box */
-        #debugBox {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            max-height: 50px;
-            overflow: hidden;
-            background: #1e1e1e;
-            color: #d4d4d4;
-            font-family: monospace;
-            font-size: 12px;
-            border-top: 3px solid #007acc;
-            z-index: 9999;
-        }
-        
-        #debugBox.expanded {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-    </style>
-</head>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -65,6 +10,36 @@
     
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
+    
+    <!-- ✅ INLINE STYLES - حل جذري للمشكلة -->
+    <style>
+        /* إخفاء التطبيق بالكامل */
+        #appContainer {
+            display: none !important;
+        }
+        
+        /* إظهار شاشة الدخول فقط */
+        #loginScreen {
+            display: flex !important;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        /* إخفاء جميع الشاشات */
+        .screen {
+            display: none !important;
+        }
+        
+        /* إظهار الشاشة النشطة فقط */
+        .screen.active {
+            display: block !important;
+        }
+        
+        /* ✅ إخفاء Debug Box */
+        #debugBox {
+            display: none !important;
+        }
+    </style>
 </head>
 <body>
 
@@ -102,7 +77,7 @@
 <!-- ============================================================ -->
 <!-- MAIN APPLICATION -->
 <!-- ============================================================ -->
-<div id="appContainer" class="app-container" style="display: none;">
+<div id="appContainer" class="app-container">
     
     <!-- Header -->
     <div class="header">
@@ -610,17 +585,75 @@
     </div>
 </div>
 
+<!-- User Modal -->
+<div id="userModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="userModalTitle">تعديل صلاحيات المستخدم</h2>
+            <button class="close-btn" data-action="closeModal" data-modal="userModal">&times;</button>
+        </div>
+        <form id="userForm" data-submit="saveUserProfile">
+            <input type="hidden" id="userId">
+            <input type="hidden" id="userEntityType">
+            
+            <div class="form-group">
+                <label>البريد الإلكتروني</label>
+                <div id="userEmailDisplay" class="user-email-display"></div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="userRoleSelect">الدور *</label>
+                    <select id="userRoleSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="userPermissionSelect">الصلاحية *</label>
+                    <select id="userPermissionSelect" required></select>
+                </div>
+            </div>
+            
+            <div class="form-row" id="userEntityRow" style="display: none;">
+                <div class="form-group full">
+                    <label for="userEntitySelect">الكيان المرتبط *</label>
+                    <select id="userEntitySelect"></select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="userActiveSelect">الحالة</label>
+                <select id="userActiveSelect" required>
+                    <option value="true">مفعل</option>
+                    <option value="false">معطل</option>
+                </select>
+            </div>
+            
+            <div class="warning-box" style="margin-bottom: 15px;">
+                ⚠️ <strong>ملاحظات:</strong>
+                <ul style="margin-top: 8px; padding-right: 20px;">
+                    <li>إنشاء المستخدم يتم من Supabase Dashboard</li>
+                    <li>لا يمكن حذف المستخدم، فقط تعطيله</li>
+                    <li>لا يمكن تعطيل حسابك الخاص</li>
+                    <li>لا يمكن تغيير دور آخر مدير في النظام</li>
+                    <li>جميع التغييرات تُسجل في سجل النشاط</li>
+                </ul>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block">حفظ التغييرات</button>
+        </form>
+    </div>
+</div>
+
 <!-- ============================================================ -->
 <!-- TOAST NOTIFICATION -->
 <!-- ============================================================ -->
 <div id="toast" class="toast"></div>
 
 <!-- ============================================================ -->
-<!-- DEBUG BOX -->
+<!-- DEBUG BOX (مخفي) -->
 <!-- ============================================================ -->
 <div id="debugBox" class="debug-box expanded">
     <div id="debug-header" class="debug-header">
-        <h3>🔍 Debug Log <span id="debugStatus" style="color: #4caf50; font-size: 12px;">[مفعّل]</span> <span style="font-size: 10px; color: #888;">(اضغط للفتح/الإغلاق)</span></h3>
+        <h3>🔍 Debug Log <span id="debugStatus" style="color: #4caf50; font-size: 12px;">[مفعّل]</span></h3>
         <div class="debug-controls">
             <button data-action="toggleDebug">⏯️</button>
             <button data-action="clearDebugLog">🗑️</button>
