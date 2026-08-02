@@ -1,6 +1,6 @@
 /* ============================================================ */
 /* نظام إدارة التمويل - Stylesheet                              */
-/* Version: 3.0.0                                                */
+/* Version: 3.1.0                                                */
 /* Last Updated: 2026-08-02                                      */
 /* ============================================================ */
 
@@ -267,8 +267,9 @@ a:hover {
 /* 5. APP CONTAINER                                              */
 /* ============================================================ */
 
+/* ✅ تم إزالة !important حتى يتحكم JavaScript في العرض */
 .app-container {
-    display: none !important;
+    display: none;
     min-height: 100vh;
     background: #f0f2f5;
 }
@@ -362,12 +363,14 @@ a:hover {
 /* 6. SCREENS                                                    */
 /* ============================================================ */
 
+/* ✅ تم إزالة !important حتى يتحكم JavaScript في العرض */
 .screen {
-    display: none !important;
+    display: none;
 }
 
+/* ✅ تم إزالة !important حتى يتحكم JavaScript في العرض */
 .screen.active {
-    display: block !important;
+    display: block;
     animation: fadeIn 0.3s ease;
 }
 
@@ -872,6 +875,7 @@ tr:hover {
 /* 16. LOADING OVERLAY                                           */
 /* ============================================================ */
 
+/* ✅ تم تغيير display من flex إلى none حتى لا يظهر افتراضياً */
 .loading-overlay {
     position: fixed;
     top: 0;
@@ -880,11 +884,15 @@ tr:hover {
     height: 100%;
     background: rgba(255,255,255,0.9);
     z-index: 9999;
-    display: flex;
+    display: none;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     gap: 20px;
+}
+
+.loading-overlay.active {
+    display: flex;
 }
 
 .loading-spinner {
