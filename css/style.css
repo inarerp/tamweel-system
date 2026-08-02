@@ -1268,7 +1268,48 @@ tr:hover {
         padding: 30px 20px;
     }
 }
+/* ... (كل الـ CSS الأصلي موجود كما هو من السطر 1 حتى نهاية Responsive) ... */
 
+/* ============================================================ */
+/* 23. TRANSFER MODAL (Parties Ledger)                           */
+/* ============================================================ */
+
+.transfer-summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.summary-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.arrow-icon {
+    font-size: 24px;
+    color: #ffd700;
+}
+
+.summary-category {
+    font-size: 12px;
+    opacity: 0.9;
+    background: rgba(255,255,255,0.2);
+    padding: 5px 10px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+/* ============================================================ */
+/* END OF STYLESHEET                                             */
+/* ============================================================ */
 
 /* ============================================================ */
 /* END OF STYLESHEET                                             */
