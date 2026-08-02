@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - Auth Module
-// Version: 2.0.0
+// Version: 2.2.0
 // Last Updated: 2026-08-02
 // ============================================================
 //
@@ -56,75 +56,93 @@ function clearUserState() {
 /**
  * تسجيل الدخول
  * يُستدعى من data-action="handleLoginClick"
+ * ✅ يستخدم signInWithPassword مباشرة بدون runQuery
  */
 async function handleLoginClick() {
-    debug('🔘 تم الضغط على زر تسجيل الدخول', 'success');
+    debug('🔐 بدء تسجيل الدخول', 'info');
     
     var emailEl = document.getElementById('loginEmail');
     var passEl = document.getElementById('loginPassword');
     var errorMsg = document.getElementById('errorMsg');
     
     if (!emailEl || !passEl) {
-        debug('❌ عناصر تسجيل الدخول غير موجودة في HTML', 'error');
+        debug('❌ عناصر تسجيل الدخول غير موجودة', 'error');
         return;
     }
     
-    var email = emailEl.value;
+    var email = emailEl.value.trim();
     var password = passEl.value;
     
-    // التحقق من البيانات
     if (isEmpty(email) || isEmpty(password)) {
+        debug('⚠️ بيانات ناقصة', 'warning');
         if (errorMsg) {
             errorMsg.textContent = '⚠️ يرجى إدخال البريد الإلكتروني وكلمة المرور';
             errorMsg.style.display = 'block';
         }
-        debug('⚠️ بيانات ناقصة', 'warning');
         return;
     }
     
-    // التحقق من صيغة البريد
     if (!isEmail(email)) {
+        debug('⚠️ صيغة بريد غير صحيحة: ' + email, 'warning');
         if (errorMsg) {
             errorMsg.textContent = '⚠️ صيغة البريد الإلكتروني غير صحيحة';
             errorMsg.style.display = 'block';
         }
-        debug('⚠️ صيغة بريد غير صحيحة: ' + email, 'warning');
         return;
     }
     
-    // التحقق من Supabase
     if (!isSupabaseReady()) {
+        debug(' Supabase غير جاهز', 'error');
         if (errorMsg) {
-            errorMsg.textContent = '❌ خطأ في الاتصال بالنظام';
+            errorMsg.textContent = ' خطأ في الاتصال بقاعدة البيانات';
             errorMsg.style.display = 'block';
         }
         return;
     }
     
-    // إخفاء رسالة الخطأ السابقة
     if (errorMsg) errorMsg.style.display = 'none';
-    
-    // تفعيل حالة التحميل
     setButtonLoading('loginBtn', true);
     
-    debug('📧 Email: ' + email, 'info');
-    debug('🔄 جاري تسجيل الدخول...', 'info');
-    
     try {
-        var result = await runQuery(
-            function() {
-                return APP.supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-            },
-            { context: 'login', throwError: true }
-        );
+        debug('🔵 استدعاء signInWithPassword مباشرة...', 'info');
         
-        var data = result.data;
+        // ✅ استخدام signInWithPassword مباشرة بدون runQuery
+        var result = await APP.supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
         
-        debug('✅ تم تسجيل الدخول بنجاح', 'success');
-        APP.currentUser = data.user;
+        debug('🔵 نتيجة signInWithPassword:', 'info');
+        debug('  - error: ' + (result.error ? result.error.message : 'null'), 'info');
+        debug('  - user: ' + (result.data && result.data.user ? 'موجود' : 'غير موجود'), 'info');
+        
+        if (result.error) {
+            debug('❌ خطأ من Supabase: ' + result.error.message, 'error');
+            
+            if (errorMsg) {
+                errorMsg.textContent = '❌ ' + result.error.message;
+                errorMsg.style.display = 'block';
+            }
+            
+            setButtonLoading('loginBtn', false);
+            return;
+        }
+        
+        if (!result.data || !result.data.user) {
+            debug('❌ لا يوجد user في النتيجة', 'error');
+            
+            if (errorMsg) {
+                errorMsg.textContent = '❌ فشل تسجيل الدخول';
+                errorMsg.style.display = 'block';
+            }
+            
+            setButtonLoading('loginBtn', false);
+            return;
+        }
+        
+        debug('✅ تم تسجيل الدخول بنجاح - User ID: ' + result.data.user.id, 'success');
+        
+        APP.currentUser = result.data.user;
         
         // تسجيل في Activity Log (إذا كانت الدالة متاحة)
         if (typeof window.logActivityToDB === 'function') {
@@ -139,13 +157,17 @@ async function handleLoginClick() {
             );
         }
         
+        debug('🔵 بدء loadUserProfile...', 'info');
+        
         // تحميل بيانات المستخدم والصلاحيات
         var profileLoaded = await loadUserProfile();
         
+        debug('🔵 profileLoaded: ' + profileLoaded, 'info');
+        
         if (profileLoaded) {
+            debug('✅ إظهار التطبيق', 'success');
             showApp();
         } else {
-            // فشل تحميل الملف الشخصي - تنظيف الحالة
             debug('❌ فشل تحميل الملف الشخصي', 'error');
             clearUserState();
             
@@ -163,10 +185,13 @@ async function handleLoginClick() {
         }
         
     } catch (err) {
-        debug('❌ فشل تسجيل الدخول: ' + err.message, 'error');
+        debug('❌ Exception في handleLoginClick: ' + err.message, 'error');
+        if (err.stack) {
+            debug('  - stack: ' + err.stack.substring(0, 200), 'error');
+        }
         
         if (errorMsg) {
-            errorMsg.textContent = '❌ ' + handleSupabaseError(err, 'تسجيل الدخول');
+            errorMsg.textContent = '❌ ' + err.message;
             errorMsg.style.display = 'block';
         }
         
@@ -177,9 +202,10 @@ async function handleLoginClick() {
 /**
  * تسجيل الخروج
  * يُستدعى من data-action="doLogout"
+ * ✅ يستخدم signOut مباشرة بدون runQuery
  */
 async function doLogout() {
-    debug('🚪 جاري تسجيل الخروج...', 'info');
+    debug(' جاري تسجيل الخروج...', 'info');
     
     // تسجيل في Activity Log قبل تسجيل الخروج (إذا كانت الدالة متاحة)
     if (APP.currentUser && typeof window.logActivityToDB === 'function') {
@@ -199,15 +225,16 @@ async function doLogout() {
     
     if (APP.supabase) {
         try {
-            await runQuery(
-                function() {
-                    return APP.supabase.auth.signOut();
-                },
-                { context: 'logout', throwError: false }
-            );
-            debug('✅ تم تسجيل الخروج', 'success');
+            // ✅ استخدام signOut مباشرة بدون runQuery
+            var result = await APP.supabase.auth.signOut();
+            
+            if (result.error) {
+                debug('⚠️ خطأ في signOut: ' + result.error.message, 'warning');
+            } else {
+                debug('✅ تم تسجيل الخروج', 'success');
+            }
         } catch (err) {
-            debug('⚠️ خطأ في signOut: ' + err.message, 'warning');
+            debug('⚠️ Exception في signOut: ' + err.message, 'warning');
         }
     }
     
@@ -222,6 +249,7 @@ async function doLogout() {
 /**
  * التحقق من الجلسة الحالية عند تحميل الصفحة
  * يُستدعى من app.js
+ * ✅ يستخدم getSession مباشرة بدون runQuery
  */
 async function checkSession() {
     debug('🔍 جاري التحقق من الجلسة...', 'info');
@@ -232,22 +260,22 @@ async function checkSession() {
     }
     
     try {
-        var result = await runQuery(
-            function() {
-                return APP.supabase.auth.getSession();
-            },
-            { context: 'checkSession', throwError: true }
-        );
+        // ✅ استخدام getSession مباشرة بدون runQuery
+        var result = await APP.supabase.auth.getSession();
         
         var session = result.data ? result.data.session : null;
         
-        debug('📋 Session: ' + (session ? 'موجود' : 'غير موجود'), session ? 'success' : 'info');
+        debug(' Session: ' + (session ? 'موجود' : 'غير موجود'), session ? 'success' : 'info');
         
         if (session) {
             APP.currentUser = session.user;
             
+            debug('🔵 بدء loadUserProfile من session...', 'info');
+            
             // تحميل بيانات المستخدم والصلاحيات
             var profileLoaded = await loadUserProfile();
+            
+            debug('🔵 profileLoaded من session: ' + profileLoaded, 'info');
             
             if (profileLoaded) {
                 showApp();
@@ -315,16 +343,23 @@ async function loadUserProfile() {
     }
     
     try {
-        var result = await runQuery(
-            function() {
-                return APP.supabase
-                    .from('user_profiles')
-                    .select('role, entity_id, permission, is_active')
-                    .eq('id', APP.currentUser.id)
-                    .maybeSingle();
-            },
-            { context: 'loadUserProfile', throwError: true }
-        );
+        debug('🔵 استدعاء select من user_profiles...', 'info');
+        debug('  - User ID: ' + APP.currentUser.id, 'info');
+        
+        var result = await APP.supabase
+            .from('user_profiles')
+            .select('role, entity_id, permission, is_active')
+            .eq('id', APP.currentUser.id)
+            .maybeSingle();
+        
+        debug('🔵 نتيجة user_profiles:', 'info');
+        debug('  - error: ' + (result.error ? result.error.message : 'null'), 'info');
+        debug('  - data: ' + (result.data ? 'موجود' : 'غير موجود'), 'info');
+        
+        if (result.error) {
+            debug('❌ خطأ من Supabase: ' + result.error.message, 'error');
+            return false;
+        }
         
         var profile = result.data;
         
@@ -348,13 +383,16 @@ async function loadUserProfile() {
         debug('✅ Role: ' + APP.userRole + ', Permission: ' + APP.userPermission, 'success');
         
         if (APP.currentEntityId) {
-            debug('🔗 Entity ID: ' + APP.currentEntityId, 'info');
+            debug(' Entity ID: ' + APP.currentEntityId, 'info');
         }
         
         return true;
         
     } catch (err) {
         debug('❌ Exception في loadUserProfile: ' + err.message, 'error');
+        if (err.stack) {
+            debug('  - stack: ' + err.stack.substring(0, 200), 'error');
+        }
         return false;
     }
 }
