@@ -65,7 +65,7 @@ function registerAllScreenLoaders() {
     registerScreenLoader('investors', loadInvestors);
     registerScreenLoader('operations', loadOperations);
     registerScreenLoader('transfers', loadTransfers);
-    registerScreenLoader('myAccount', loadMyAccount);
+    //registerScreenLoader('myAccount', loadMyAccount);
     registerScreenLoader('activityLog', loadActivityLog);
     registerScreenLoader('users', loadUsers);
     
@@ -452,7 +452,13 @@ function calculateEndDate() {
         }
     }
 }
-
+/**
+ * دالة فارغة لـ myAccount (لن ننفذها الآن)
+ */
+function loadMyAccount() {
+    debug('⚠️ loadMyAccount غير منفذ بعد', 'warning');
+    // TODO: تنفيذ شاشة حسابي لاحقاً
+}
 
 // ============================================================
 // END OF APP.JS
