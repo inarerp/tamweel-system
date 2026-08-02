@@ -60,6 +60,16 @@ async function loadDashboard() {
         debug('❌ خطأ في loadDashboard: ' + err.message, 'error');
     } finally {
         hideLoading();
+        
+        // ✅ Fallback: إخفاء الـ loading بعد 2 ثانية كإجراء احتياطي
+        setTimeout(function() {
+            var overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+                overlay.style.visibility = 'hidden';
+                overlay.style.opacity = '0';
+            }
+        }, 2000);
     }
 }
 
@@ -425,7 +435,7 @@ async function loadDashboardForInvestor() {
         if (summary.capitalPending > 0) {
             alerts.push({
                 type: 'info',
-                icon: '🏦',
+                icon: '',
                 message: 'لديك رأس مال جاهز للإرجاع بقيمة ' + formatMoney(summary.capitalPending),
                 action: 'showScreen',
                 screen: 'myAccount'
@@ -638,7 +648,7 @@ function renderDashboardAlerts(data) {
             alerts.push({
                 priority: 3,
                 type: 'warning',
-                icon: '💰',
+                icon: '',
                 message: 'الممول "' + inv.name + '" له أرباح مستحقة: ' + formatMoney(summary.outstandingProfit),
                 action: 'navigateToEntity',
                 entityType: 'investor',
