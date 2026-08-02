@@ -1,12 +1,13 @@
 // ============================================================
 // نظام إدارة التمويل - Core Module
-// Version: 1.1.0
+// Version: 2.0.0
 // Last Updated: 2026-08-02
 // ============================================================
 //
 // المسؤوليات:
 // - Configuration
 // - Constants
+// - Screen Loaders Registry
 // - Global State (APP Object)
 // - Debug System
 // - Utility Functions
@@ -14,6 +15,7 @@
 // - Supabase Helpers
 //
 // ملاحظة: هذا الملف لا يعتمد على أي ملف آخر
+// ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
 // ============================================================
 
 
@@ -151,7 +153,25 @@ var TRANSACTION_CATEGORIES_TEXT = Object.freeze({
 
 
 // ============================================================
-// 3. GLOBAL STATE (APP Object)
+// 3. SCREEN LOADERS REGISTRY
+// ============================================================
+
+var SCREEN_LOADERS = {};
+
+/**
+ * تسجيل دالة تحميل شاشة في Registry
+ * @param {string} screenId - معرّف الشاشة
+ * @param {Function} loaderFunction - دالة التحميل
+ */
+function registerScreenLoader(screenId, loaderFunction) {
+    if (typeof loaderFunction === 'function') {
+        SCREEN_LOADERS[screenId] = loaderFunction;
+    }
+}
+
+
+// ============================================================
+// 4. GLOBAL STATE (APP Object)
 // ============================================================
 // ملاحظة: userRole و userPermission يبدأان بـ null
 // يتم تعيينهما فقط بعد التحقق من user_profiles في auth.js
@@ -166,14 +186,19 @@ var APP = {
     currentOperationData: null,
     currentEntityId: null,
     currentScreen: 'dashboard',
+    currentModal: null,
     isLoading: false
 };
 
 
 // ============================================================
-// 4. SUPABASE INITIALIZATION
+// 5. SUPABASE INITIALIZATION
 // ============================================================
 
+/**
+ * تهيئة Supabase Client
+ * @returns {boolean} - true إذا نجح
+ */
 function initSupabase() {
     try {
         if (typeof window.supabase === 'undefined') {
@@ -183,6 +208,10 @@ function initSupabase() {
         
         APP.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         debug('✅ تم إنشاء Supabase Client', 'success');
+        
+        // تطبيق رؤية Debug Box
+        applyDebugVisibility();
+        
         return true;
     } catch (err) {
         debug('❌ خطأ في createClient: ' + err.message, 'error');
@@ -190,9 +219,23 @@ function initSupabase() {
     }
 }
 
+/**
+ * تطبيق رؤية Debug Box حسب DEBUG_MODE
+ */
+function applyDebugVisibility() {
+    var debugBox = document.getElementById('debugBox');
+    if (debugBox) {
+        if (!DEBUG_MODE) {
+            debugBox.style.display = 'none';
+        } else {
+            debugBox.style.display = 'block';
+        }
+    }
+}
+
 
 // ============================================================
-// 5. DEBUG SYSTEM
+// 6. DEBUG SYSTEM
 // ============================================================
 
 var DEBUG_MODE = true;
@@ -209,13 +252,10 @@ function debug(input, type) {
     
     var msg, data;
     
-    // دعم String (توافق عكسي)
     if (typeof input === 'string') {
         msg = input;
         data = null;
-    }
-    // دعم Object (مرونة)
-    else if (typeof input === 'object' && input !== null) {
+    } else if (typeof input === 'object' && input !== null) {
         msg = input.message || 'Debug message';
         type = input.type || type;
         data = input.data || null;
@@ -249,6 +289,9 @@ function debug(input, type) {
     }
 }
 
+/**
+ * تسجيل خطأ مفصّل
+ */
 function logError(funcName, errorMsg, details) {
     details = details || {};
     var msg = '❌ [' + funcName + '] ' + errorMsg;
@@ -263,6 +306,9 @@ function logError(funcName, errorMsg, details) {
     console.error(msg);
 }
 
+/**
+ * طي/فتح Debug Box
+ */
 function toggleDebugBox() {
     var debugBox = document.getElementById('debugBox');
     if (debugBox) {
@@ -270,6 +316,9 @@ function toggleDebugBox() {
     }
 }
 
+/**
+ * تشغيل/إيقاف Debug Mode
+ */
 function toggleDebug() {
     DEBUG_MODE = !DEBUG_MODE;
     var statusEl = document.getElementById('debugStatus');
@@ -277,9 +326,13 @@ function toggleDebug() {
         statusEl.textContent = DEBUG_MODE ? '[مفعّل]' : '[متوقف]';
         statusEl.style.color = DEBUG_MODE ? '#4caf50' : '#f44336';
     }
+    applyDebugVisibility();
     debug('Debug Mode: ' + (DEBUG_MODE ? 'ON' : 'OFF'), 'info');
 }
 
+/**
+ * مسح سجل Debug
+ */
 function clearDebugLog() {
     debugMessages = [];
     var el = document.getElementById('debugContent');
@@ -287,6 +340,9 @@ function clearDebugLog() {
     debug('تم مسح السجل', 'info');
 }
 
+/**
+ * نسخ سجل Debug إلى Clipboard
+ */
 function copyDebugLog() {
     var text = debugMessages.map(function(m) {
         var line = '[' + m.time + '] [' + m.screen + '] ' + m.msg;
@@ -318,11 +374,11 @@ window.onunhandledrejection = function(event) {
 
 
 // ============================================================
-// 6. UTILITY FUNCTIONS
+// 7. UTILITY FUNCTIONS
 // ============================================================
 
 // ------------------------------------------------------------
-// 6.1 Toast Notifications
+// 7.1 Toast Notifications
 // ------------------------------------------------------------
 
 function showToast(msg, type) {
@@ -339,7 +395,7 @@ function showToast(msg, type) {
 }
 
 // ------------------------------------------------------------
-// 6.2 Money Helpers
+// 7.2 Money Helpers
 // ------------------------------------------------------------
 
 function formatMoney(n) {
@@ -354,7 +410,7 @@ function parseMoney(value) {
 }
 
 // ------------------------------------------------------------
-// 6.3 Date Helpers
+// 7.3 Date Helpers
 // ------------------------------------------------------------
 
 function formatDate(d) {
@@ -391,7 +447,7 @@ function addMonths(date, months) {
     var originalDay = result.getDate();
     result.setMonth(result.getMonth() + months);
     
-    // Last Day of Month - إذا تجاوز اليوم نهاية الشهر الجديد
+    // Last Day of Month
     if (result.getDate() !== originalDay) {
         result.setDate(0);
     }
@@ -427,7 +483,7 @@ function daysBetween(date1, date2) {
 }
 
 // ------------------------------------------------------------
-// 6.4 Text Helpers
+// 7.4 Text Helpers
 // ------------------------------------------------------------
 
 function getStatusText(status) {
@@ -473,28 +529,52 @@ function truncateText(text, maxLength) {
 }
 
 // ------------------------------------------------------------
-// 6.5 Modal Helpers
+// 7.5 Modal Manager (موحد)
 // ------------------------------------------------------------
 
+/**
+ * فتح Modal مع منع التداخل
+ * يغلق أي Modal مفتوح قبل فتح الجديد
+ */
+function openModal(id) {
+    if (APP.currentModal && APP.currentModal !== id) {
+        var currentEl = document.getElementById(APP.currentModal);
+        if (currentEl) currentEl.classList.remove('active');
+    }
+    
+    var el = document.getElementById(id);
+    if (el) {
+        el.classList.add('active');
+        APP.currentModal = id;
+    }
+}
+
+/**
+ * إغلاق Modal
+ */
 function closeModal(id) {
     var el = document.getElementById(id);
-    if (el) el.classList.remove('active');
+    if (el) {
+        el.classList.remove('active');
+        if (APP.currentModal === id) {
+            APP.currentModal = null;
+        }
+    }
 }
 
-function openModal(id) {
-    var el = document.getElementById(id);
-    if (el) el.classList.add('active');
-}
-
+/**
+ * إغلاق جميع الـ Modals
+ */
 function closeAllModals() {
     var modals = document.querySelectorAll('.modal.active');
     for (var i = 0; i < modals.length; i++) {
         modals[i].classList.remove('active');
     }
+    APP.currentModal = null;
 }
 
 // ------------------------------------------------------------
-// 6.6 Validation Helpers
+// 7.6 Validation Helpers
 // ------------------------------------------------------------
 
 function isEmpty(value) {
@@ -546,7 +626,7 @@ function isDateInRange(date, startDate, endDate) {
 }
 
 // ------------------------------------------------------------
-// 6.7 Confirmation Helpers
+// 7.7 Confirmation Helpers
 // ------------------------------------------------------------
 
 function confirmAction(message) {
@@ -579,7 +659,7 @@ function confirmComplete(operationName) {
 
 
 // ============================================================
-// 7. LOADING HELPERS
+// 8. LOADING HELPERS
 // ============================================================
 
 function showLoading() {
@@ -631,19 +711,18 @@ function enableButton(buttonId) {
 
 
 // ============================================================
-// 8. SUPABASE HELPERS
+// 9. SUPABASE HELPERS
 // ============================================================
 
 /**
  * تنفيذ استعلام Supabase مع معالجة الأخطاء الموحدة
  * @param {Function} queryFn - دالة الاستعلام
  * @param {string|Object} options - سياق العملية أو خيارات متقدمة
- * @param {string} options.context - سياق العملية (للتقارير)
+ * @param {string} options.context - سياق العملية
  * @param {boolean} options.throwError - هل نرمي الخطأ أم نرجعه؟
  * @returns {Promise<Object>} - { data, error }
  */
 async function runQuery(queryFn, options) {
-    // دعم التوافق العكسي - إذا كان options string، نعامله كـ context
     if (typeof options === 'string') {
         options = { context: options, throwError: false };
     }
@@ -659,11 +738,7 @@ async function runQuery(queryFn, options) {
             debug({
                 message: '❌ خطأ في ' + context + ': ' + result.error.message,
                 type: 'error',
-                data: {
-                    context: context,
-                    error: result.error,
-                    code: result.error.code
-                }
+                data: { context: context, error: result.error, code: result.error.code }
             }, 'error');
             
             if (throwError) {
@@ -675,15 +750,11 @@ async function runQuery(queryFn, options) {
         
         return { data: result.data, error: null };
     } catch (err) {
-        // إذا كان الخطأ من Supabase (result.error)، لا نعيد تسجيله
         if (!err.code) {
             debug({
                 message: '❌ Exception في ' + context + ': ' + err.message,
                 type: 'error',
-                data: {
-                    context: context,
-                    stack: err.stack
-                }
+                data: { context: context, stack: err.stack }
             }, 'error');
         }
         
@@ -709,19 +780,19 @@ function handleSupabaseError(error, context) {
     var userMessage = '';
     
     switch (error.code) {
-        case '23505': // Unique violation
+        case '23505':
             userMessage = 'هذا السجل موجود بالفعل';
             break;
-        case '23503': // Foreign key violation
+        case '23503':
             userMessage = 'لا يمكن تنفيذ العملية بسبب وجود سجلات مرتبطة';
             break;
-        case '23502': // Not null violation
+        case '23502':
             userMessage = 'بعض الحقول المطلوبة فارغة';
             break;
-        case '42501': // Permission denied
+        case '42501':
             userMessage = 'ليس لديك صلاحية لتنفيذ هذه العملية';
             break;
-        case 'PGRST301': // JWT expired
+        case 'PGRST301':
             userMessage = 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى';
             break;
         default:
@@ -748,7 +819,7 @@ function isSupabaseReady() {
 
 
 // ============================================================
-// 9. SHARED HELPERS
+// 10. SHARED HELPERS
 // ============================================================
 
 function safeParseFloat(value, defaultValue) {
@@ -819,19 +890,6 @@ function arrayToObject(arr, keyField) {
     return obj;
 }
 
-
-// ============================================================
-// 10. INITIALIZATION
-// ============================================================
-
-debug('🚀 بدأ تحميل core.js', 'success');
-
-// تهيئة Supabase عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', function() {
-    initSupabase();
-});
-
-debug('✅ core.js جاهز', 'success');
 
 // ============================================================
 // END OF CORE.JS
