@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - App Module (Bootstrap)
-// Version: 2.1.0
-// Last Updated: 2026-08-02
+// Version: 2.2.0
+// Last Updated: 2026-08-03
 // ============================================================
 //
 // المسؤوليات:
@@ -18,7 +18,7 @@
 // - clients.js (loadClients, etc.)
 // - investors.js (loadInvestors, etc.)
 // - operations.js (loadOperations, etc.)
-// - transfers.js (loadTransfers, etc.)
+// - transfers.js (loadTransfers, updateTransferFields, etc.)
 // - users.js (loadUsers, etc.)
 // ============================================================
 
@@ -74,7 +74,7 @@ function registerAllScreenLoaders() {
     registerScreenLoader('activityLog', loadActivityLog);
     registerScreenLoader('users', loadUsers);
     
-    // ✅ myAccount - دالة فارغة (placeholder)
+    // myAccount - Placeholder (غير منفذ حالياً)
     registerScreenLoader('myAccount', function() {
         debug('⚠️ شاشة حسابي غير منفذة بعد', 'warning');
         var container = document.getElementById('myAccountContent');
@@ -140,11 +140,16 @@ function bindGlobalEvents() {
         }
     });
     
-    // 4. Select Changes (للفلاتر)
+    // 4. Select Changes (للفلاتر والتحويلات)
     document.body.addEventListener('change', function(event) {
         var target = event.target;
         
-        // Transfer Type Toggle
+        // ✅ Transfer Modal Dynamic Fields (Parties Ledger)
+        if (target.id === 'transferFromType' || target.id === 'transferToType') {
+            if (typeof updateTransferFields === 'function') updateTransferFields();
+        }
+        
+        // Transfer Type Toggle (للتوافق مع الكود القديم إذا وجد)
         if (target.id === 'transferType') {
             if (typeof toggleInvestorSelect === 'function') toggleInvestorSelect();
         }
@@ -334,7 +339,7 @@ function handleGlobalAction(action, target, event) {
                     window[action]();
                 }
             } else {
-                debug('⚠️ إجراء غير معروف: ' + action, 'warning');
+                debug('️ إجراء غير معروف: ' + action, 'warning');
             }
     }
 }
@@ -348,12 +353,12 @@ function handleGlobalAction(action, target, event) {
  * معالجة إرسال النماذج (data-submit)
  */
 function handleFormSubmit(handler, form, event) {
-    debug('📝 إرسال نموذج: ' + handler, 'info');
+    debug(' إرسال نموذج: ' + handler, 'info');
     
     if (typeof window[handler] === 'function') {
         window[handler](form, event);
     } else {
-        debug('⚠️ handler غير معروف: ' + handler, 'warning');
+        debug('️ handler غير معروف: ' + handler, 'warning');
     }
 }
 
@@ -454,7 +459,7 @@ function switchTab(tabName, btn) {
     var content = document.getElementById(contentId);
     if (content) content.classList.add('active');
     
-    debug(' تبديل التبويب: ' + tabName, 'info');
+    debug('📑 تبديل التبويب: ' + tabName, 'info');
 }
 
 
