@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - App Module (Bootstrap)
-// Version: 2.0.0
+// Version: 2.1.0
 // Last Updated: 2026-08-02
 // ============================================================
 //
@@ -28,10 +28,15 @@
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log(' app.js - DOMContentLoaded');
+    
     debug('🚀 بدء تهيئة التطبيق...', 'info');
     
     // 1. تهيئة Supabase (من core.js)
-    initSupabase();
+    if (!APP.supabase) {
+        console.log('🔵 initSupabase() من app.js');
+        initSupabase();
+    }
     
     // 2. تسجيل Screen Loaders في Registry
     registerAllScreenLoaders();
@@ -46,6 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 5. التحقق من الجلسة
     checkSession();
     
+    console.log('🔵 app.js - اكتملت التهيئة');
     debug('✅ اكتملت تهيئة التطبيق', 'success');
 });
 
@@ -65,9 +71,17 @@ function registerAllScreenLoaders() {
     registerScreenLoader('investors', loadInvestors);
     registerScreenLoader('operations', loadOperations);
     registerScreenLoader('transfers', loadTransfers);
-    //registerScreenLoader('myAccount', loadMyAccount);
     registerScreenLoader('activityLog', loadActivityLog);
     registerScreenLoader('users', loadUsers);
+    
+    // ✅ myAccount - دالة فارغة (placeholder)
+    registerScreenLoader('myAccount', function() {
+        debug('⚠️ شاشة حسابي غير منفذة بعد', 'warning');
+        var container = document.getElementById('myAccountContent');
+        if (container) {
+            container.innerHTML = '<div class="empty-state">شاشة حسابي قيد التطوير</div>';
+        }
+    });
     
     debug('✅ تم تسجيل ' + Object.keys(SCREEN_LOADERS).length + ' شاشة', 'success');
 }
@@ -109,7 +123,7 @@ function bindGlobalEvents() {
         
         // Operation Date Calculation
         if (target.id === 'opStartDate' || target.id === 'opDurationDays') {
-            calculateEndDate();
+            if (typeof calculateEndDate === 'function') calculateEndDate();
         }
         
         // Operation Investor Validation
@@ -203,11 +217,11 @@ function handleGlobalAction(action, target, event) {
         
         // Auth
         case 'handleLoginClick':
-            handleLoginClick();
+            if (typeof handleLoginClick === 'function') handleLoginClick();
             break;
         
         case 'doLogout':
-            doLogout();
+            if (typeof doLogout === 'function') doLogout();
             break;
         
         // Modals
@@ -266,9 +280,9 @@ function handleGlobalAction(action, target, event) {
             break;
         
         case 'editOperation':
-            if (typeof editOperation === 'function' && APP.currentOperation) {
-                closeModal('operationDetailsModal');
-                editOperation(APP.currentOperation);
+            var opId = target.getAttribute('data-param');
+            if (typeof editOperation === 'function' && opId) {
+                editOperation(opId);
             }
             break;
         
@@ -276,6 +290,20 @@ function handleGlobalAction(action, target, event) {
         case 'switchTab':
             var tabName = target.getAttribute('data-tab');
             if (tabName) switchTab(tabName, target);
+            break;
+        
+        case 'switchClientTab':
+            var clientTabName = target.getAttribute('data-tab');
+            if (typeof switchClientTab === 'function' && clientTabName) {
+                switchClientTab(clientTabName, target);
+            }
+            break;
+        
+        case 'switchInvestorTab':
+            var investorTabName = target.getAttribute('data-tab');
+            if (typeof switchInvestorTab === 'function' && investorTabName) {
+                switchInvestorTab(investorTabName, target);
+            }
             break;
         
         // Debug
@@ -426,7 +454,7 @@ function switchTab(tabName, btn) {
     var content = document.getElementById(contentId);
     if (content) content.classList.add('active');
     
-    debug('📑 تبديل التبويب: ' + tabName, 'info');
+    debug(' تبديل التبويب: ' + tabName, 'info');
 }
 
 
