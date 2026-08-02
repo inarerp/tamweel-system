@@ -11,34 +11,27 @@
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
     
-    <!-- ✅ INLINE STYLES - حل جذري للمشكلة -->
+    <!-- ✅ Inline Styles - بدون !important حتى يعمل JavaScript -->
     <style>
-        /* إخفاء التطبيق بالكامل */
+        /* إخفاء التطبيق في البداية - JavaScript سيغيره بعد تسجيل الدخول */
         #appContainer {
-            display: none !important;
+            display: none;
         }
         
-        /* إظهار شاشة الدخول فقط */
+        /* إظهار شاشة الدخول في البداية */
         #loginScreen {
-            display: flex !important;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
         }
         
         /* إخفاء جميع الشاشات */
         .screen {
-            display: none !important;
+            display: none;
         }
         
-        /* إظهار الشاشة النشطة فقط */
+        /* إظهار الشاشة النشطة */
         .screen.active {
-            display: block !important;
+            display: block;
         }
-        
-       /* ✅ إظهار Debug Box */
-    #debugBox {
-        display: block !important;
-    }
     </style>
 </head>
 <body>
@@ -451,7 +444,7 @@
             <div id="opTimelineList"></div>
         </div>
         <div class="actions-cell admin-only" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-            <button class="btn btn-secondary" data-action="editOperation">✏️ تعديل</button>
+            <button class="btn btn-secondary" data-action="editOperation">️ تعديل</button>
         </div>
     </div>
 </div>
@@ -649,7 +642,7 @@
 <div id="toast" class="toast"></div>
 
 <!-- ============================================================ -->
-<!-- DEBUG BOX (مخفي) -->
+<!-- DEBUG BOX -->
 <!-- ============================================================ -->
 <div id="debugBox" class="debug-box expanded">
     <div id="debug-header" class="debug-header">
