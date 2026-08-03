@@ -233,13 +233,72 @@ function editOperation(operationId) {
     openOperationModal(operationId);
 }
 
-async function saveOperation(form, event) {
+async function saveOpInvestor(form, event) {
     if (event) event.preventDefault();
     
-    if (!canEdit()) {
-        showToast('❌ لا توجد صلاحية', 'error');
+    // 🔍 Debug: معرفة سبب المشكلة
+    debug('🔍 saveOpInvestor: currentOperationId = ' + OPERATIONS_STATE.currentOperationId, 'info');
+    debug('🔍 saveOpInvestor: canEdit() = ' + canEdit(), 'info');
+    
+    if (!OPERATIONS_STATE.currentOperationId) {
+        showToast('❌ لا توجد عملية محددة. يرجى فتح تفاصيل العملية أولاً.', 'error');
         return;
     }
+    
+    if (!canEdit()) {
+        showToast('❌ لا توجد صلاحية للتعديل. تأكد من أنك مسجل كـ Admin.', 'error');
+        debug('❌ canEdit() returned false. Check user_profiles table.', 'error');
+        return;
+    }
+
+    var investorId = document.getElementById('newOpInvestorId').value;
+    var contribution = parseFloat(document.getElementById('newOpInvestorContribution').value) || 0;
+    var profit = parseFloat(document.getElementById('newOpInvestorProfit').value) || 0;
+
+    if (!investorId) {
+        showToast('❌ يرجى اختيار الممول', 'error');
+        return;
+    }
+
+    if (contribution <= 0) {
+        showToast('❌ المساهمة يجب أن تكون أكبر من صفر', 'error');
+        return;
+    }
+
+    showLoading();
+
+    try {
+        var data = {
+            operation_id: OPERATIONS_STATE.currentOperationId,
+            investor_id: investorId,
+            contribution: contribution,
+            profit: profit
+        };
+
+        debug('💾 حفظ بيانات الممول: ' + JSON.stringify(data), 'info');
+
+        var result = await runQuery(function() {
+            return APP.supabase.from('operation_investors').insert(data).select();
+        }, { context: 'saveOpInvestor', throwError: true });
+
+        if (result.data && result.data[0]) {
+            if (typeof window.logActivityToDB === 'function') {
+                await window.logActivityToDB('إضافة ممول لعملية', 'operation_investor', result.data[0].id, null, JSON.stringify(data), 'Operation: ' + OPERATIONS_STATE.currentOperationId, 'create');
+            }
+
+            showToast('✅ تم إضافة الممول للعملية', 'success');
+        }
+
+        closeModal('addInvestorToOpModal');
+        await loadOpInvestorsTab(OPERATIONS_STATE.currentOperationId);
+        
+    } catch (err) {
+        debug('❌ خطأ في saveOpInvestor: ' + err.message, 'error');
+        showToast(handleSupabaseError(err, 'إضافة الممول'), 'error');
+    } finally {
+        hideLoading();
+    }
+}
 
     var id = document.getElementById('operationId').value;
     var data = {
