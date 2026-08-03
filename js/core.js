@@ -862,7 +862,100 @@ function arrayToObject(arr, keyField) {
     });
     return obj;
 }
+// ... (أدخل هذا التعديل داخل دالة window.logDebug أو إنشاء دالة جديدة)
+function initDebugWidget() {
+    if (!APP.DEBUG_MODE) return;
 
+    const container = document.getElementById('debugWidgetContainer');
+    if (container) return; // Already created
+
+    const body = document.body;
+    const widgetHTML = `
+        <div id="debugWidgetContainer">
+            <button id="debugToggleBtn">
+                <span>🐞 <span id="debugCounter">0</span> Log Messages</span>
+                <span id="debugArrow">▲</span>
+            </button>
+            <div id="debugContent">
+                <div id="debugLog"></div>
+                <div id="debugControls">
+                    <span style="font-size:11px; color:#666;">Console Level: INFO | WARN | ERROR</span>
+                    <div class="debug-controls">
+                        <button onclick="clearDebug()">Clear</button>
+                        <button onclick="copyDebug()">Copy</button>
+                        <button onclick="toggleDebug()">Hide</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    body.insertAdjacentHTML('beforeend', widgetHTML);
+
+    document.getElementById('debugToggleBtn').addEventListener('click', toggleDebug);
+}
+
+function toggleDebug() {
+    const content = document.getElementById('debugContent');
+    const arrow = document.getElementById('debugArrow');
+    const container = document.getElementById('debugWidgetContainer');
+    
+    if (content.style.display === 'flex') {
+        content.style.display = 'none';
+        arrow.textContent = '▲';
+        container.style.height = 'auto';
+    } else {
+        content.style.display = 'flex';
+        arrow.textContent = '▼';
+        const logDiv = document.getElementById('debugLog');
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+}
+
+function clearDebug() {
+    document.getElementById('debugLog').innerHTML = '';
+    document.getElementById('debugCounter').innerText = '0';
+}
+
+function copyDebug() {
+    const text = document.getElementById('debugLog').innerText;
+    navigator.clipboard.writeText(text).then(() => showToast('تم نسخ السجل', 'success'));
+}
+
+function updateDebugCount() {
+    const log = document.getElementById('debugLog');
+    if (log) {
+        const lines = log.innerText.split('\n').filter(l => l.trim().length > 0);
+        document.getElementById('debugCounter').innerText = lines.length;
+    }
+}
+
+// override console.log to capture it in our widget
+const originalLog = console.log;
+console.log = function(...args) {
+    originalLog.apply(console, args);
+    if (APP.DEBUG_MODE) {
+        appendDebugLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'log');
+    }
+};
+
+function appendDebugLog(msg, type) {
+    const log = document.getElementById('debugLog');
+    if (!log) return;
+    
+    const time = new Date().toLocaleTimeString();
+    let color = '#00ff00';
+    if (type === 'error') color = '#ff3333';
+    if (type === 'warn') color = '#ffcc00';
+
+    log.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+    updateDebugCount();
+    log.scrollTop = log.scrollHeight;
+}
+
+function debug(msg, type='info') {
+    if (!APP.DEBUG_MODE) return;
+    appendDebugLog(msg, type);
+}
 
 // ============================================================
 // END OF CORE.JS
