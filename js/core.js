@@ -1,12 +1,13 @@
 // ============================================================
 // نظام إدارة التمويل - Core Module
-// Version: 6.0.0 (Production Ready - Complete Rewrite)
+// Version: 6.1.0 (Production Ready - Complete Rewrite)
 // Last Updated: 2026-08-03
 // 
 // يحتوي على:
 // - APP State & Constants
 // - Debug System (زر عائم + Panel جانبي)
-// - Supabase Helpers
+// - Supabase Initialization
+// - Auth Initialization
 // - Loading & Notifications
 // - Modal Helpers
 // - Confirmation Dialogs
@@ -24,7 +25,7 @@ var APP = {
     user: null,
     userProfile: null,
     DEBUG_MODE: true,
-    VERSION: '6.0.0',
+    VERSION: '6.1.0',
     currentScreen: null,
     screenLoaders: {},
     isLoading: false
@@ -84,17 +85,28 @@ function _createDebugPanel() {
     panel.innerHTML = 
         '<div id="debugPanelHeader">' +
             '<h3>🐞 Debug Panel (<span id="debugCounter">0</span>)</h3>' +
-            '<button id="debugCloseBtn" onclick="toggleDebugPanel()" aria-label="إغلاق">✕</button>' +
+            '<button id="debugCloseBtn" aria-label="إغلاق">✕</button>' +
         '</div>' +
         '<div id="debugPanelContent">' +
             '<div id="debugLog" aria-live="polite"></div>' +
             '<div id="debugPanelControls">' +
-                '<button onclick="clearDebug()">🗑️ Clear</button>' +
-                '<button onclick="copyDebug()">📋 Copy</button>' +
+                '<button id="debugClearBtn">🗑️ Clear</button>' +
+                '<button id="debugCopyBtn">📋 Copy</button>' +
             '</div>' +
         '</div>';
     
     document.body.appendChild(panel);
+    
+    // ربط الأحداث بعد إضافة العناصر للـ DOM
+    setTimeout(function() {
+        var closeBtn = document.getElementById('debugCloseBtn');
+        var clearBtn = document.getElementById('debugClearBtn');
+        var copyBtn = document.getElementById('debugCopyBtn');
+        
+        if (closeBtn) closeBtn.onclick = toggleDebugPanel;
+        if (clearBtn) clearBtn.onclick = clearDebug;
+        if (copyBtn) copyBtn.onclick = copyDebug;
+    }, 100);
     
     debug('✅ Debug Panel initialized (v' + APP.VERSION + ')', 'success');
 }
@@ -219,7 +231,92 @@ function debug(msg, type) {
 }
 
 // ============================================================
-// 3. SUPABASE HELPERS
+// 3. SUPABASE INITIALIZATION
+// ============================================================
+
+async function initSupabase() {
+    debug('⚙️ بدء تهيئة Supabase...', 'info');
+    
+    // Supabase Configuration
+    var SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
+    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTk4NDg2MDAsImV4cCI6MjAzNTQyNDYwMH0.b8X7Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9';
+    
+    // التحقق من وجود مكتبة Supabase
+    if (typeof supabase === 'undefined') {
+        debug('❌ مكتبة Supabase غير محملة. تأكد من إضافة <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> في index.html', 'error');
+        showToast('❌ فشل تحميل مكتبة Supabase', 'error');
+        return false;
+    }
+    
+    try {
+        // تهيئة Supabase Client
+        APP.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // اختبار الاتصال
+        var { data, error } = await APP.supabase.from('clients').select('id').limit(1);
+        
+        if (error) {
+            debug('⚠️ تحذير: ' + error.message, 'warn');
+        }
+        
+        debug('✅ Supabase تم تهيئته بنجاح', 'success');
+        return true;
+        
+    } catch (err) {
+        debug('❌ خطأ في initSupabase: ' + err.message, 'error');
+        showToast('❌ فشل في الاتصال بقاعدة البيانات', 'error');
+        return false;
+    }
+}
+
+// ============================================================
+// 4. AUTH INITIALIZATION
+// ============================================================
+
+async function initAuth() {
+    debug('⚙️ بدء تهيئة المصادقة...', 'info');
+    
+    if (!APP.supabase) {
+        debug('❌ Supabase غير جاهز', 'error');
+        return false;
+    }
+    
+    try {
+        // جلب المستخدم الحالي
+        var { data: { user } } = await APP.supabase.auth.getUser();
+        
+        if (user) {
+            APP.user = user;
+            debug('✅ المستخدم مسجل: ' + user.email, 'success');
+            
+            // جلب ملف المستخدم
+            var { data: profile, error } = await APP.supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+            
+            if (error) {
+                debug('⚠️ لم يتم العثور على ملف المستخدم: ' + error.message, 'warn');
+            } else {
+                APP.userProfile = profile;
+                debug('✅ ملف المستخدم: ' + profile.role, 'success');
+            }
+            
+            return true;
+        } else {
+            debug('ℹ️ لا يوجد مستخدم مسجل', 'info');
+            return false;
+        }
+        
+    } catch (err) {
+        debug('❌ خطأ في initAuth: ' + err.message, 'error');
+        return false;
+    }
+}
+
+// ============================================================
+// 5. SUPABASE HELPERS
 // ============================================================
 
 function isSupabaseReady() {
@@ -284,7 +381,7 @@ function handleSupabaseError(err, context) {
 }
 
 // ============================================================
-// 4. LOADING
+// 6. LOADING
 // ============================================================
 
 var LOADING_STATE = {
@@ -332,7 +429,7 @@ function hideLoading() {
 }
 
 // ============================================================
-// 5. TOAST / NOTIFICATIONS
+// 7. TOAST / NOTIFICATIONS
 // ============================================================
 
 function showToast(message, type) {
@@ -378,7 +475,7 @@ function showToast(message, type) {
 }
 
 // ============================================================
-// 6. MODAL HELPERS
+// 8. MODAL HELPERS
 // ============================================================
 
 function openModal(modalId) {
@@ -442,7 +539,7 @@ function closeAllModals() {
 }
 
 // ============================================================
-// 7. CONFIRMATION DIALOGS
+// 9. CONFIRMATION DIALOGS
 // ============================================================
 
 function confirmAction(message) {
@@ -460,7 +557,7 @@ function confirmArchive(itemName) {
 }
 
 // ============================================================
-// 8. SCREEN HELPERS
+// 10. SCREEN HELPERS
 // ============================================================
 
 function registerScreenLoader(screenName, loaderFn) {
@@ -494,7 +591,7 @@ async function loadScreen(screenName) {
 }
 
 // ============================================================
-// 9. UTILITIES
+// 11. UTILITIES
 // ============================================================
 
 function formatMoney(amount) {
@@ -628,7 +725,7 @@ function debounce(func, wait) {
 }
 
 // ============================================================
-// 10. AUTH HELPERS (Wrapper Functions)
+// 12. AUTH HELPERS (Wrapper Functions)
 // ============================================================
 
 // ملاحظة: هذه الدوال تستدعي الدوال المعرفة في auth.js
@@ -668,7 +765,7 @@ function getUserProfile() {
 }
 
 // ============================================================
-// 11. ACTIVITY LOG HELPER
+// 13. ACTIVITY LOG HELPER
 // ============================================================
 
 async function logActivity(action, entityType, entityId, oldValue, newValue, details, actionType) {
@@ -684,7 +781,7 @@ async function logActivity(action, entityType, entityId, oldValue, newValue, det
 }
 
 // ============================================================
-// 12. NAVIGATION HELPERS
+// 14. NAVIGATION HELPERS
 // ============================================================
 
 function navigateTo(screenName) {
@@ -696,7 +793,16 @@ function navigateTo(screenName) {
 }
 
 // ============================================================
-// 13. INITIALIZATION
+// 15. GLOBAL FUNCTIONS (Make available for onclick handlers)
+// ============================================================
+
+// جعل الدوال متاحة في window scope لاستخدامها في onclick
+window.toggleDebugPanel = toggleDebugPanel;
+window.clearDebug = clearDebug;
+window.copyDebug = copyDebug;
+
+// ============================================================
+// 16. INITIALIZATION
 // ============================================================
 
 function initCore() {
@@ -706,15 +812,34 @@ function initCore() {
     initDebugPanel();
     
     // الاستماع لأحداث DOM
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         debug('✅ DOM جاهز', 'success');
+        
+        // تهيئة Supabase
+        var supabaseReady = await initSupabase();
+        
+        if (supabaseReady) {
+            // تهيئة المصادقة
+            await initAuth();
+            
+            // تهيئة باقي الوحدات
+            if (typeof initOperations === 'function') initOperations();
+            if (typeof initClients === 'function') initClients();
+            if (typeof initInvestors === 'function') initInvestors();
+            if (typeof initTransfers === 'function') initTransfers();
+            if (typeof initUsers === 'function') initUsers();
+            if (typeof initDashboard === 'function') initDashboard();
+            if (typeof initActivity === 'function') initActivity();
+            
+            debug('✅ جميع الوحدات جاهزة', 'success');
+        }
     });
     
     debug('✅ core.js جاهز', 'success');
 }
 
 // ============================================================
-// 14. GLOBAL ERROR HANDLER
+// 17. GLOBAL ERROR HANDLER
 // ============================================================
 
 window.onerror = function(message, source, lineno, colno, error) {
@@ -741,7 +866,7 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 // ============================================================
-// 15. STARTUP
+// 18. STARTUP
 // ============================================================
 
 // تهيئة core.js عند تحميل الملف
