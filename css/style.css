@@ -1312,31 +1312,73 @@ tr:hover {
     font-size: 15px;
     font-family: inherit;
 }
-/* تصغير Debug Box */
-.debug-box {
-    max-height: 35px !important;
-    font-size: 11px;
-    border-top: 2px solid #007acc;
+
+/* ================= Debug Widget ================= */
+#debugWidgetContainer {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    z-index: 9999;
+    font-family: monospace;
+    border-top: 3px solid var(--primary-color);
+    background: var(--bg-color);
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
 }
 
-.debug-box.expanded {
-    max-height: 250px !important;
-}
-
-.debug-header h3 {
-    font-size: 12px;
-}
-
-.debug-line {
-    font-size: 10px;
-    padding: 3px 6px;
-    margin: 2px 0;
+#debugToggleBtn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+    border: none;
+    width: 100%;
+    font-weight: bold;
+    font-size: 13px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
 }
 
 #debugContent {
-    padding: 0 10px 10px 10px;
+    display: none; /* Hidden by default */
+    height: 200px;
+    padding: 15px;
+    overflow: hidden;
+    flex-direction: column;
+    border-top: 1px solid var(--border-color);
 }
 
+#debugLog {
+    flex: 1;
+    overflow-y: auto;
+    background: #1a1a1a;
+    color: #00ff00;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+#debugControls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.debug-controls button {
+    padding: 4px 10px;
+    font-size: 11px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    cursor: pointer;
+    margin-left: 5px;
+}
 /* ============================================================ */
 /* END OF STYLESHEET                                             */
 /* ============================================================ */
