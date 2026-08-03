@@ -201,40 +201,116 @@
     </div>
 </div>
 
+<!-- Operation Modal -->
 <div id="operationModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header"><h2 id="operationModalTitle">إضافة عملية</h2><button class="close-btn" data-action="closeModal" data-modal="operationModal">&times;</button></div>
+        <div class="modal-header">
+            <h2 id="operationModalTitle">إضافة عملية</h2>
+            <button class="close-btn" data-action="closeModal" data-modal="operationModal">&times;</button>
+        </div>
         <form id="operationForm" data-submit="saveOperation">
             <input type="hidden" id="operationId">
+            
             <div class="form-row">
-                <div class="form-group"><label for="opName">اسم العملية *</label><input type="text" id="opName" required></div>
-                <div class="form-group"><label for="opType">نوع العملية *</label><select id="opType" required><option value="financing">تمويل</option><option value="supply">توريد</option></select></div>
+                <div class="form-group">
+                    <label for="opName">اسم العملية *</label>
+                    <input type="text" id="opName" required>
+                </div>
+                <div class="form-group">
+                    <label for="opType">نوع العملية *</label>
+                    <select id="opType" required>
+                        <option value="financing">تمويل</option>
+                        <option value="supply">توريد</option>
+                    </select>
+                </div>
             </div>
+            
             <div class="form-row">
-                <div class="form-group"><label for="opClient">العميل *</label><select id="opClient" required></select></div>
-                <div class="form-group"><label for="opAmount">قيمة التمويل *</label><input type="number" id="opAmount" step="0.01" min="0.01" required></div>
+                <div class="form-group">
+                    <label for="opClient">العميل *</label>
+                    <select id="opClient" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="opAmount">قيمة التمويل *</label>
+                    <input type="number" id="opAmount" step="0.01" min="0.01" required>
+                </div>
             </div>
+            
+            <!-- ✅ حقل جديد: المبلغ الظاهر للممول -->
+            <div class="form-group">
+                <label for="opInvestorDisplayAmount">المبلغ الظاهر للممول</label>
+                <input type="number" id="opInvestorDisplayAmount" step="0.01" min="0" placeholder="اتركه فارغاً إذا كان نفس قيمة التمويل">
+            </div>
+            
             <div class="form-row profit-field">
-                <div class="form-group"><label for="opExpectedProfit">الربح المتوقع</label><input type="number" id="opExpectedProfit" step="0.01" min="0"></div>
-                <div class="form-group"><label for="opFinalProfit">الربح النهائي</label><input type="number" id="opFinalProfit" step="0.01" min="0"></div>
+                <div class="form-group">
+                    <label for="opExpectedProfit">الربح المتوقع</label>
+                    <input type="number" id="opExpectedProfit" step="0.01" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="opFinalProfit">الربح النهائي</label>
+                    <input type="number" id="opFinalProfit" step="0.01" min="0">
+                </div>
             </div>
+            
             <div class="form-row profit-field">
-                <div class="form-group"><label for="opProfitApprovalDate">تاريخ اعتماد الربح</label><input type="date" id="opProfitApprovalDate"></div>
-                <div class="form-group"><label for="opGoogleDriveUrl">رابط Google Drive</label><input type="url" id="opGoogleDriveUrl" placeholder="https://drive.google.com/..."></div>
+                <div class="form-group">
+                    <label for="opProfitApprovalDate">تاريخ اعتماد الربح</label>
+                    <input type="date" id="opProfitApprovalDate">
+                </div>
+                <div class="form-group">
+                    <label for="opGoogleDriveUrl">رابط Google Drive</label>
+                    <input type="url" id="opGoogleDriveUrl" placeholder="https://drive.google.com/...">
+                </div>
             </div>
+            
             <div class="form-row profit-field">
-                <div class="form-group"><label for="opCompanyProfitType">طريقة حساب ربح الشركة</label><select id="opCompanyProfitType"><option value="">بدون</option><option value="percentage">نسبة مئوية %</option><option value="fixed">رقم ثابت</option></select></div>
-                <div class="form-group"><label for="opCompanyProfitValue">القيمة</label><input type="number" id="opCompanyProfitValue" step="0.01" min="0"></div>
+                <div class="form-group">
+                    <label for="opCompanyProfitType">طريقة حساب ربح الشركة</label>
+                    <select id="opCompanyProfitType">
+                        <option value="">بدون</option>
+                        <option value="percentage">نسبة مئوية %</option>
+                        <option value="fixed">رقم ثابت</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="opCompanyProfitValue">القيمة</label>
+                    <input type="number" id="opCompanyProfitValue" step="0.01" min="0">
+                </div>
             </div>
+            
             <div class="form-row">
-                <div class="form-group"><label for="opStartDate">تاريخ البداية *</label><input type="date" id="opStartDate" required></div>
-                <div class="form-group"><label for="opDurationDays">عدد الأيام</label><input type="number" id="opDurationDays" min="1"></div>
+                <div class="form-group">
+                    <label for="opStartDate">تاريخ البداية *</label>
+                    <input type="date" id="opStartDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="opDurationDays">عدد الأيام</label>
+                    <input type="number" id="opDurationDays" min="1">
+                </div>
             </div>
+            
             <div class="form-row">
-                <div class="form-group"><label for="opEndDate">تاريخ النهاية</label><input type="date" id="opEndDate"></div>
-                <div class="form-group"><label for="opStatus">الحالة</label><select id="opStatus"><option value="draft">تحت الإنشاء</option><option value="active">نشطة</option><option value="completed">انتهت</option><option value="cancelled">ألغيت</option></select></div>
+                <div class="form-group">
+                    <label for="opEndDate">تاريخ النهاية</label>
+                    <input type="date" id="opEndDate">
+                </div>
+                <div class="form-group">
+                    <label for="opStatus">الحالة</label>
+                    <select id="opStatus">
+                        <option value="draft">تحت الإنشاء</option>
+                        <option value="active">نشطة</option>
+                        <option value="completed">انتهت</option>
+                        <option value="cancelled">ألغيت</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group"><label for="opNotes">ملاحظات</label><textarea id="opNotes" rows="3"></textarea></div>
+            
+            <div class="form-group">
+                <label for="opNotes">ملاحظات</label>
+                <textarea id="opNotes" rows="3"></textarea>
+            </div>
+            
             <button type="submit" class="btn btn-primary btn-block">حفظ</button>
         </form>
     </div>
