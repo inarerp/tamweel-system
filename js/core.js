@@ -1,745 +1,252 @@
 // ============================================================
 // نظام إدارة التمويل - Core Module
-// Version: 2.0.0
-// Last Updated: 2026-08-02
-// ============================================================
-//
-// المسؤوليات:
-// - Configuration
-// - Constants
-// - Screen Loaders Registry
-// - Global State (APP Object)
-// - Debug System
-// - Utility Functions
-// - Shared Helpers
+// Version: 6.0.0 (Production Ready - Complete Rewrite)
+// Last Updated: 2026-08-03
+// 
+// يحتوي على:
+// - APP State & Constants
+// - Debug System (زر عائم + Panel جانبي)
 // - Supabase Helpers
-//
-// ملاحظة: هذا الملف لا يعتمد على أي ملف آخر
-// ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
+// - Loading & Notifications
+// - Modal Helpers
+// - Confirmation Dialogs
+// - Screen Helpers
+// - Utilities
+// - Error Handling
 // ============================================================
 
-
 // ============================================================
-// 1. CONFIGURATION
-// ============================================================
-
-var SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
-var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
-
-
-// ============================================================
-// 2. CONSTANTS
-// ============================================================
-
-var STATUS = Object.freeze({
-    DRAFT: 'draft',
-    ACTIVE: 'active',
-    COMPLETED: 'completed',
-    CANCELLED: 'cancelled'
-});
-
-var STATUS_TEXT = Object.freeze({
-    draft: 'تحت الإنشاء',
-    active: 'نشطة',
-    completed: 'انتهت',
-    cancelled: 'ألغيت'
-});
-
-var USER_ROLES = Object.freeze({
-    ADMIN: 'admin',
-    VIEWER: 'viewer',
-    CLIENT: 'client',
-    INVESTOR: 'investor'
-});
-
-var USER_ROLES_TEXT = Object.freeze({
-    admin: 'مدير',
-    viewer: 'مراقب',
-    client: 'عميل',
-    investor: 'ممول'
-});
-
-var PERMISSIONS = Object.freeze({
-    ADMIN: 'admin',
-    VIEWER: 'viewer'
-});
-
-var OPERATION_TYPES = Object.freeze({
-    FINANCING: 'financing',
-    SUPPLY: 'supply'
-});
-
-var OPERATION_TYPES_TEXT = Object.freeze({
-    financing: 'تمويل',
-    supply: 'توريد'
-});
-
-var COMPANY_PROFIT_TYPES = Object.freeze({
-    PERCENTAGE: 'percentage',
-    FIXED: 'fixed'
-});
-
-var TRANSFER_TYPES = Object.freeze({
-    COMPANY_TO_CLIENT: 'company_to_client',
-    CLIENT_TO_COMPANY: 'client_to_company',
-    COMPANY_TO_INVESTOR: 'company_to_investor'
-});
-
-var TRANSFER_TYPES_TEXT = Object.freeze({
-    company_to_client: 'شركة → عميل',
-    client_to_company: 'عميل → شركة',
-    company_to_investor: 'شركة → ممول'
-});
-
-var TRANSFER_PURPOSES = Object.freeze({
-    CLIENT_FUNDING: 'client_funding',
-    CLIENT_REPAYMENT: 'client_repayment',
-    CAPITAL_RETURN: 'capital_return',
-    PROFIT_DISTRIBUTION: 'profit_distribution',
-    SETTLEMENT: 'settlement',
-    ADDITIONAL_FUNDING: 'additional_funding',
-    OTHER: 'other'
-});
-
-var TRANSFER_PURPOSES_TEXT = Object.freeze({
-    client_funding: 'تمويل',
-    client_repayment: 'سداد',
-    capital_return: 'إرجاع رأس مال',
-    profit_distribution: 'توزيع أرباح',
-    settlement: 'تسوية',
-    additional_funding: 'تمويل إضافي',
-    other: 'أخرى'
-});
-
-var PARTY_TYPES = Object.freeze({
-    CLIENT: 'client',
-    INVESTOR: 'investor',
-    COMPANY: 'company'
-});
-
-var PARTY_TYPES_TEXT = Object.freeze({
-    client: 'عميل',
-    investor: 'ممول',
-    company: 'شركة'
-});
-
-var TRANSACTION_CATEGORIES = Object.freeze({
-    CLIENT_DEPOSIT_IN: 'client_deposit_in',
-    CLIENT_USE_OUT: 'client_use_out',
-    CLIENT_RETURN_OUT: 'client_return_out',
-    CLIENT_ADJUST: 'client_adjust',
-    INVESTOR_CAPITAL_IN: 'investor_capital_in',
-    INVESTOR_OPERATION_IN: 'investor_operation_in',
-    INVESTOR_RETURN_OUT: 'investor_return_out',
-    INVESTOR_PROFIT_OUT: 'investor_profit_out',
-    COMPANY_EXPENSE_OUT: 'company_expense_out',
-    COMPANY_INCOME_IN: 'company_income_in',
-    COMPANY_TRANSFER: 'company_transfer'
-});
-
-var TRANSACTION_CATEGORIES_TEXT = Object.freeze({
-    client_deposit_in: 'إيداع لدى الشركة',
-    client_use_out: 'استخدام رصيد في عملية',
-    client_return_out: 'رد رصيد للعميل',
-    client_adjust: 'تعديل رصيد',
-    investor_capital_in: 'إضافة رأس مال',
-    investor_operation_in: 'دخول عملية',
-    investor_return_out: 'إرجاع رأس مال',
-    investor_profit_out: 'صرف أرباح',
-    company_expense_out: 'مصروف',
-    company_income_in: 'إيراد',
-    company_transfer: 'تحويل داخلي'
-});
-
-
-// ============================================================
-// 3. SCREEN LOADERS REGISTRY
-// ============================================================
-
-var SCREEN_LOADERS = {};
-
-/**
- * تسجيل دالة تحميل شاشة في Registry
- * @param {string} screenId - معرّف الشاشة
- * @param {Function} loaderFunction - دالة التحميل
- */
-function registerScreenLoader(screenId, loaderFunction) {
-    if (typeof loaderFunction === 'function') {
-        SCREEN_LOADERS[screenId] = loaderFunction;
-    }
-}
-
-
-// ============================================================
-// 4. GLOBAL STATE (APP Object)
+// 1. APP OBJECT & CONSTANTS
 // ============================================================
 
 var APP = {
     supabase: null,
-    currentUser: null,
-    userRole: null,
-    userPermission: null,
-    currentOperation: null,
-    currentOperationData: null,
-    currentEntityId: null,
-    currentScreen: 'dashboard',
-    currentModal: null,
+    user: null,
+    userProfile: null,
+    DEBUG_MODE: true,
+    VERSION: '6.0.0',
+    currentScreen: null,
+    screenLoaders: {},
     isLoading: false
 };
 
+var CONSTANTS = {
+    TOAST_DURATION: 4000,
+    LOADING_MIN_DURATION: 300,
+    MAX_LOG_ENTRIES: 500,
+    DATE_FORMAT: 'ar-EG',
+    CURRENCY: 'ج.م'
+};
 
 // ============================================================
-// 5. SUPABASE INITIALIZATION
+// 2. DEBUG SYSTEM (New Design - Floating Button + Side Panel)
 // ============================================================
 
-/**
- * تهيئة Supabase Client
- * @returns {boolean} - true إذا نجح
- */
-function initSupabase() {
-    try {
-        if (typeof window.supabase === 'undefined') {
-            debug('❌ مكتبة Supabase لم تُحمّل!', 'error');
-            return false;
-        }
-        
-        APP.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        debug('✅ تم إنشاء Supabase Client', 'success');
-        
-        // تطبيق رؤية Debug Box
-        applyDebugVisibility();
-        
-        return true;
-    } catch (err) {
-        debug('❌ خطأ في createClient: ' + err.message, 'error');
-        return false;
-    }
-}
+var DEBUG_STATE = {
+    isOpen: false,
+    logCount: 0
+};
 
-/**
- * تطبيق رؤية Debug Box حسب DEBUG_MODE
- */
-function applyDebugVisibility() {
-    var debugBox = document.getElementById('debugBox');
-    if (debugBox) {
-        if (!DEBUG_MODE) {
-            debugBox.style.display = 'none';
-        } else {
-            debugBox.style.display = 'block';
-        }
-    }
-}
-
-
-// ============================================================
-// 6. DEBUG SYSTEM
-// ============================================================
-
-var DEBUG_MODE = true;
-var debugMessages = [];
-
-/**
- * نظام Debug المرن - يدعم String أو Object
- */
-function debug(input, type) {
-    type = type || 'info';
-    if (!DEBUG_MODE) return;
+function initDebugPanel() {
+    if (!APP.DEBUG_MODE) return;
     
-    var msg, data;
-    
-    if (typeof input === 'string') {
-        msg = input;
-        data = null;
-    } else if (typeof input === 'object' && input !== null) {
-        msg = input.message || 'Debug message';
-        type = input.type || type;
-        data = input.data || null;
+    // الانتظار حتى يتم تحميل DOM بالكامل
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', _createDebugPanel);
     } else {
-        msg = String(input);
-        data = null;
+        _createDebugPanel();
     }
+}
+
+function _createDebugPanel() {
+    // إزالة أي Debug قديم
+    var oldElements = ['debugWidgetContainer', 'debugFloatingBtn', 'debugPanel'];
+    oldElements.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.remove();
+    });
+
+    // إنشاء الزر العائم
+    var btn = document.createElement('button');
+    btn.id = 'debugFloatingBtn';
+    btn.innerHTML = '🐞';
+    btn.title = 'Debug Panel';
+    btn.setAttribute('aria-label', 'فتح لوحة التصحيح');
+    btn.onclick = toggleDebugPanel;
+    document.body.appendChild(btn);
+
+    // إنشاء الـ Panel الجانبي
+    var panel = document.createElement('div');
+    panel.id = 'debugPanel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'لوحة التصحيح');
+    
+    panel.innerHTML = 
+        '<div id="debugPanelHeader">' +
+            '<h3>🐞 Debug Panel (<span id="debugCounter">0</span>)</h3>' +
+            '<button id="debugCloseBtn" onclick="toggleDebugPanel()" aria-label="إغلاق">✕</button>' +
+        '</div>' +
+        '<div id="debugPanelContent">' +
+            '<div id="debugLog" aria-live="polite"></div>' +
+            '<div id="debugPanelControls">' +
+                '<button onclick="clearDebug()">🗑️ Clear</button>' +
+                '<button onclick="copyDebug()">📋 Copy</button>' +
+            '</div>' +
+        '</div>';
+    
+    document.body.appendChild(panel);
+    
+    debug('✅ Debug Panel initialized (v' + APP.VERSION + ')', 'success');
+}
+
+function toggleDebugPanel() {
+    var panel = document.getElementById('debugPanel');
+    if (!panel) return;
+    
+    DEBUG_STATE.isOpen = !DEBUG_STATE.isOpen;
+    
+    if (DEBUG_STATE.isOpen) {
+        panel.classList.add('open');
+        // Scroll to bottom
+        var log = document.getElementById('debugLog');
+        if (log) log.scrollTop = log.scrollHeight;
+    } else {
+        panel.classList.remove('open');
+    }
+}
+
+function clearDebug() {
+    var log = document.getElementById('debugLog');
+    if (log) log.innerHTML = '';
+    
+    var counter = document.getElementById('debugCounter');
+    if (counter) counter.innerText = '0';
+    
+    DEBUG_STATE.logCount = 0;
+}
+
+function copyDebug() {
+    var log = document.getElementById('debugLog');
+    if (!log) return;
+    
+    var text = log.innerText;
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('✅ تم نسخ السجل', 'success');
+        }).catch(function() {
+            _fallbackCopy(text);
+        });
+    } else {
+        _fallbackCopy(text);
+    }
+}
+
+function _fallbackCopy(text) {
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    
+    try {
+        document.execCommand('copy');
+        showToast('✅ تم نسخ السجل', 'success');
+    } catch (e) {
+        showToast('❌ فشل النسخ', 'error');
+    }
+    
+    document.body.removeChild(textarea);
+}
+
+function updateDebugCount() {
+    var counter = document.getElementById('debugCounter');
+    if (counter) {
+        counter.innerText = DEBUG_STATE.logCount;
+    }
+}
+
+function appendDebugLog(msg, type) {
+    var log = document.getElementById('debugLog');
+    if (!log) return;
+    
+    // تحديد اللون حسب النوع
+    var color = '#00ff00'; // default: green
+    if (type === 'error') color = '#ff4444';
+    else if (type === 'warn') color = '#ffcc00';
+    else if (type === 'success') color = '#00ccff';
+    else if (type === 'info') color = '#00ff00';
     
     var time = new Date().toLocaleTimeString('ar-EG');
-    var fullMsg = '[' + time + '] [' + APP.currentScreen + '] ' + msg;
+    var entry = document.createElement('div');
+    entry.style.color = color;
+    entry.textContent = '[' + time + '] ' + msg;
     
-    debugMessages.push({
-        msg: msg,
-        type: type,
-        time: time,
-        screen: APP.currentScreen,
-        data: data
-    });
+    log.appendChild(entry);
     
-    var debugContent = document.getElementById('debugContent');
-    if (debugContent) {
-        var line = document.createElement('div');
-        line.className = 'debug-line debug-' + type;
-        line.textContent = fullMsg;
-        debugContent.appendChild(line);
-        
-        var debugBox = document.getElementById('debugBox');
-        if (debugBox) {
-            debugBox.scrollTop = debugBox.scrollHeight;
-        }
+    // تحديد عدد السجلات
+    DEBUG_STATE.logCount++;
+    
+    // إزالة السجلات القديمة إذا تجاوزت الحد
+    while (log.children.length > CONSTANTS.MAX_LOG_ENTRIES) {
+        log.removeChild(log.firstChild);
+    }
+    
+    updateDebugCount();
+    
+    // Auto-scroll to bottom
+    log.scrollTop = log.scrollHeight;
+}
+
+function debug(msg, type) {
+    if (!APP.DEBUG_MODE) return;
+    
+    type = type || 'info';
+    
+    // إضافة إلى الـ Panel
+    appendDebugLog(msg, type);
+    
+    // إضافة إلى console
+    try {
+        if (type === 'error') console.error('[DEBUG] ' + msg);
+        else if (type === 'warn') console.warn('[DEBUG] ' + msg);
+        else if (type === 'success') console.info('[DEBUG] ' + msg);
+        else console.log('[DEBUG] ' + msg);
+    } catch (e) {
+        // console غير متاح
     }
 }
-
-/**
- * تسجيل خطأ مفصّل
- */
-function logError(funcName, errorMsg, details) {
-    details = details || {};
-    var msg = '❌ [' + funcName + '] ' + errorMsg;
-    
-    if (details.query) msg += ' | Query: ' + details.query;
-    if (details.data) msg += ' | Data: ' + JSON.stringify(details.data).substring(0, 100);
-    if (details.response) msg += ' | Response: ' + JSON.stringify(details.response).substring(0, 100);
-    if (details.user) msg += ' | User: ' + details.user;
-    if (details.stack) msg += ' | Stack: ' + details.stack;
-    
-    debug(msg, 'error');
-    console.error(msg);
-}
-
-/**
- * طي/فتح Debug Box
- */
-function toggleDebugBox() {
-    var debugBox = document.getElementById('debugBox');
-    if (debugBox) {
-        debugBox.classList.toggle('expanded');
-    }
-}
-
-/**
- * تشغيل/إيقاف Debug Mode
- */
-function toggleDebug() {
-    DEBUG_MODE = !DEBUG_MODE;
-    var statusEl = document.getElementById('debugStatus');
-    if (statusEl) {
-        statusEl.textContent = DEBUG_MODE ? '[مفعّل]' : '[متوقف]';
-        statusEl.style.color = DEBUG_MODE ? '#4caf50' : '#f44336';
-    }
-    applyDebugVisibility();
-    debug('Debug Mode: ' + (DEBUG_MODE ? 'ON' : 'OFF'), 'info');
-}
-
-/**
- * مسح سجل Debug
- */
-function clearDebugLog() {
-    debugMessages = [];
-    var el = document.getElementById('debugContent');
-    if (el) el.innerHTML = '';
-    debug('تم مسح السجل', 'info');
-}
-
-/**
- * نسخ سجل Debug إلى Clipboard
- */
-function copyDebugLog() {
-    var text = debugMessages.map(function(m) {
-        var line = '[' + m.time + '] [' + m.screen + '] ' + m.msg;
-        if (m.data) line += ' | Data: ' + JSON.stringify(m.data);
-        return line;
-    }).join('\n');
-    
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text)
-            .then(function() { debug('✅ تم نسخ السجل', 'success'); })
-            .catch(function() { debug('❌ فشل النسخ', 'error'); });
-    } else {
-        debug('⚠️ Clipboard غير متاح', 'warning');
-    }
-}
-
-// التقاط الأخطاء العامة
-window.onerror = function(message, source, line, col, error) {
-    debug('❌ JavaScript Error: ' + message + ' (Line: ' + line + ')', 'error');
-    if (error && error.stack) {
-        debug('Stack: ' + error.stack.substring(0, 200), 'error');
-    }
-    return true;
-};
-
-window.onunhandledrejection = function(event) {
-    debug('❌ Promise Error: ' + event.reason, 'error');
-};
-
 
 // ============================================================
-// 7. UTILITY FUNCTIONS
+// 3. SUPABASE HELPERS
 // ============================================================
 
-// ------------------------------------------------------------
-// 7.1 Toast Notifications
-// ------------------------------------------------------------
-
-function showToast(msg, type) {
-    type = type || 'success';
-    var t = document.getElementById('toast');
-    if (!t) return;
-    
-    t.textContent = msg;
-    t.className = 'toast show ' + type;
-    
-    setTimeout(function() {
-        t.className = 'toast';
-    }, 3000);
+function isSupabaseReady() {
+    return !!(APP.supabase);
 }
-
-// ------------------------------------------------------------
-// 7.2 Money Helpers
-// ------------------------------------------------------------
-
-function formatMoney(n) {
-    return (parseFloat(n) || 0).toLocaleString('ar-EG', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }) + ' ج.م';
-}
-
-function parseMoney(value) {
-    return safeParseFloat(value, 0);
-}
-
-// ------------------------------------------------------------
-// 7.3 Date Helpers
-// ------------------------------------------------------------
-
-function formatDate(d) {
-    if (!d) return '-';
-    return new Date(d).toLocaleDateString('ar-EG');
-}
-
-function formatDateTime(d) {
-    if (!d) return '-';
-    return new Date(d).toLocaleString('ar-EG');
-}
-
-function formatDateForInput(date) {
-    if (!date) return '';
-    var d = new Date(date);
-    var year = d.getFullYear();
-    var month = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    return year + '-' + month + '-' + day;
-}
-
-function getTodayDate() {
-    return formatDateForInput(new Date());
-}
-
-function addDays(date, days) {
-    var result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-}
-
-function addMonths(date, months) {
-    var result = new Date(date);
-    var originalDay = result.getDate();
-    result.setMonth(result.getMonth() + months);
-    
-    if (result.getDate() !== originalDay) {
-        result.setDate(0);
-    }
-    
-    return result;
-}
-
-function isDatePast(date) {
-    if (!date) return false;
-    return new Date(date) < new Date();
-}
-
-function isDateFuture(date) {
-    if (!date) return false;
-    return new Date(date) > new Date();
-}
-
-function isDateWithinDays(date, days) {
-    if (!date) return false;
-    var target = new Date(date);
-    var now = new Date();
-    var diff = target - now;
-    var daysDiff = diff / (1000 * 60 * 60 * 24);
-    return daysDiff >= 0 && daysDiff <= days;
-}
-
-function daysBetween(date1, date2) {
-    if (!date1 || !date2) return 0;
-    var d1 = new Date(date1);
-    var d2 = new Date(date2);
-    var diff = Math.abs(d2 - d1);
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
-
-// ------------------------------------------------------------
-// 7.4 Text Helpers
-// ------------------------------------------------------------
-
-function getStatusText(status) {
-    return STATUS_TEXT[status] || status;
-}
-
-function getPartyTypeText(type) {
-    return PARTY_TYPES_TEXT[type] || type;
-}
-
-function getTransferTypeText(type) {
-    return TRANSFER_TYPES_TEXT[type] || type;
-}
-
-function getPurposeText(purpose) {
-    return TRANSFER_PURPOSES_TEXT[purpose] || purpose;
-}
-
-function getTransactionCategoryText(category) {
-    return TRANSACTION_CATEGORIES_TEXT[category] || category;
-}
-
-function getUserRoleText(role) {
-    return USER_ROLES_TEXT[role] || role;
-}
-
-function getOperationTypeText(type) {
-    return OPERATION_TYPES_TEXT[type] || type;
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    var div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function truncateText(text, maxLength) {
-    if (!text) return '';
-    maxLength = maxLength || 50;
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-}
-
-// ------------------------------------------------------------
-// 7.5 Modal Manager (موحد)
-// ------------------------------------------------------------
-
-function openModal(id) {
-    if (APP.currentModal && APP.currentModal !== id) {
-        var currentEl = document.getElementById(APP.currentModal);
-        if (currentEl) currentEl.classList.remove('active');
-    }
-    
-    var el = document.getElementById(id);
-    if (el) {
-        el.classList.add('active');
-        APP.currentModal = id;
-    }
-}
-
-function closeModal(id) {
-    var el = document.getElementById(id);
-    if (el) {
-        el.classList.remove('active');
-        if (APP.currentModal === id) {
-            APP.currentModal = null;
-        }
-    }
-}
-
-function closeAllModals() {
-    var modals = document.querySelectorAll('.modal.active');
-    for (var i = 0; i < modals.length; i++) {
-        modals[i].classList.remove('active');
-    }
-    APP.currentModal = null;
-}
-
-// ------------------------------------------------------------
-// 7.6 Validation Helpers
-// ------------------------------------------------------------
-
-function isEmpty(value) {
-    if (value === null || value === undefined) return true;
-    if (typeof value === 'string') return value.trim() === '';
-    if (Array.isArray(value)) return value.length === 0;
-    if (typeof value === 'object') return Object.keys(value).length === 0;
-    return false;
-}
-
-function isNotEmpty(value) {
-    return !isEmpty(value);
-}
-
-function isUUID(value) {
-    if (!value || typeof value !== 'string') return false;
-    var uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(value);
-}
-
-function isEmail(value) {
-    if (!value || typeof value !== 'string') return false;
-    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(value);
-}
-
-function isPositiveNumber(value) {
-    var num = parseFloat(value);
-    return !isNaN(num) && num > 0;
-}
-
-function isNonNegativeNumber(value) {
-    var num = parseFloat(value);
-    return !isNaN(num) && num >= 0;
-}
-
-function isValidDate(value) {
-    if (!value) return false;
-    var d = new Date(value);
-    return !isNaN(d.getTime());
-}
-
-function isDateInRange(date, startDate, endDate) {
-    if (!date || !startDate || !endDate) return false;
-    var d = new Date(date);
-    var start = new Date(startDate);
-    var end = new Date(endDate);
-    return d >= start && d <= end;
-}
-
-// ------------------------------------------------------------
-// 7.7 Confirmation Helpers
-// ------------------------------------------------------------
-
-function confirmAction(message) {
-    return window.confirm(message);
-}
-
-function confirmDelete(itemName) {
-    return window.confirm('هل أنت متأكد من حذف "' + itemName + '"؟\nلا يمكن التراجع عن هذه العملية.');
-}
-
-function confirmArchive(itemName) {
-    return window.confirm('هل تريد أرشفة "' + itemName + '"؟\nسيتم إخفاؤه من القوائم الرئيسية.');
-}
-
-function confirmUnarchive(itemName) {
-    return window.confirm('هل تريد إلغاء أرشفة "' + itemName + '"؟');
-}
-
-function confirmUnlock(operationName) {
-    return window.confirm('هل تريد فتح قفل العملية "' + operationName + '"؟\nسيتم تسجيل هذا الإجراء في سجل النشاط.');
-}
-
-function confirmActivate(operationName) {
-    return window.confirm('هل تريد تفعيل العملية "' + operationName + '"؟\nتأكد من اكتمال جميع البيانات قبل التفعيل.');
-}
-
-function confirmComplete(operationName) {
-    return window.confirm('هل تريد إنهاء العملية "' + operationName + '"؟\nسيتم قفلها تلقائياً بعد الإنهاء.');
-}
-
-
-// ============================================================
-// 8. LOADING HELPERS
-// ============================================================
-
-function showLoading() {
-    APP.isLoading = true;
-    var overlay = document.getElementById('loadingOverlay');
-    if (overlay) {
-        overlay.style.display = 'flex';
-        overlay.style.visibility = 'visible';
-        overlay.style.opacity = '1';
-    }
-}
-
-/**
- * ✅ تعديل: إخفاء الـ Loading Overlay بشكل كامل
- */
-function hideLoading() {
-    APP.isLoading = false;
-    var overlay = document.getElementById('loadingOverlay');
-    if (overlay) {
-        overlay.style.display = 'none';
-        overlay.style.visibility = 'hidden';
-        overlay.style.opacity = '0';
-    }
-}
-
-function setButtonLoading(buttonId, isLoading) {
-    var btn = document.getElementById(buttonId);
-    if (!btn) return;
-    
-    if (isLoading) {
-        btn.disabled = true;
-        btn.setAttribute('data-original-text', btn.textContent);
-        btn.textContent = 'جاري التحميل...';
-        btn.classList.add('loading');
-    } else {
-        btn.disabled = false;
-        var originalText = btn.getAttribute('data-original-text');
-        if (originalText) btn.textContent = originalText;
-        btn.classList.remove('loading');
-    }
-}
-
-function clearButtonLoading(buttonId) {
-    setButtonLoading(buttonId, false);
-}
-
-function disableButton(buttonId) {
-    var btn = document.getElementById(buttonId);
-    if (btn) btn.disabled = true;
-}
-
-function enableButton(buttonId) {
-    var btn = document.getElementById(buttonId);
-    if (btn) btn.disabled = false;
-}
-
-
-// ============================================================
-// 9. SUPABASE HELPERS
-// ============================================================
 
 async function runQuery(queryFn, options) {
-    if (typeof options === 'string') {
-        options = { context: options, throwError: false };
-    }
-    
     options = options || {};
     var context = options.context || 'unknown';
-    var throwError = options.throwError || false;
+    var throwError = options.throwError !== false;
     
     try {
-        var result = await queryFn();
+        if (!isSupabaseReady()) {
+            throw new Error('Supabase غير جاهز');
+        }
+        
+        var query = queryFn();
+        var result = await query;
         
         if (result.error) {
-            debug({
-                message: '❌ خطأ في ' + context + ': ' + result.error.message,
-                type: 'error',
-                data: { context: context, error: result.error, code: result.error.code }
-            }, 'error');
-            
-            if (throwError) {
-                throw result.error;
-            }
-            
-            return { data: null, error: result.error };
+            throw result.error;
         }
         
-        return { data: result.data, error: null };
+        return result;
+        
     } catch (err) {
-        if (!err.code) {
-            debug({
-                message: '❌ Exception في ' + context + ': ' + err.message,
-                type: 'error',
-                data: { context: context, stack: err.stack }
-            }, 'error');
-        }
+        debug('❌ خطأ في runQuery [' + context + ']: ' + err.message, 'error');
         
         if (throwError) {
             throw err;
@@ -749,222 +256,499 @@ async function runQuery(queryFn, options) {
     }
 }
 
-function handleSupabaseError(error, context) {
-    context = context || 'العملية';
+function handleSupabaseError(err, context) {
+    context = context || 'Operation';
     
-    if (!error) return 'حدث خطأ غير معروف';
+    var message = 'خطأ في ' + context;
     
-    var userMessage = '';
-    
-    switch (error.code) {
-        case '23505':
-            userMessage = 'هذا السجل موجود بالفعل';
-            break;
-        case '23503':
-            userMessage = 'لا يمكن تنفيذ العملية بسبب وجود سجلات مرتبطة';
-            break;
-        case '23502':
-            userMessage = 'بعض الحقول المطلوبة فارغة';
-            break;
-        case '42501':
-            userMessage = 'ليس لديك صلاحية لتنفيذ هذه العملية';
-            break;
-        case 'PGRST301':
-            userMessage = 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى';
-            break;
-        default:
-            userMessage = error.message || 'حدث خطأ أثناء ' + context;
+    if (err && err.message) {
+        // ترجمة رسائل Supabase الشائعة
+        if (err.message.includes('duplicate key')) {
+            message = '❌ البيانات مكررة. يرجى التحقق من المدخلات.';
+        } else if (err.message.includes('foreign key')) {
+            message = '❌ لا يمكن تنفيذ العملية بسبب ارتباطات موجودة.';
+        } else if (err.message.includes('policy')) {
+            message = '❌ لا توجد صلاحية لتنفيذ هذه العملية.';
+        } else if (err.message.includes('JWT') || err.message.includes('token')) {
+            message = '❌ انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.';
+        } else if (err.message.includes('fetch')) {
+            message = '❌ فشل الاتصال بالخادم. يرجى التحقق من الإنترنت.';
+        } else {
+            message = '❌ ' + err.message;
+        }
     }
     
-    logError(context, userMessage, { error: error });
+    debug('❌ Error in ' + context + ': ' + (err.message || err), 'error');
     
-    return userMessage;
+    return message;
 }
 
-function isSupabaseReady() {
-    if (!APP.supabase) {
-        debug('❌ Supabase Client غير مهيأ', 'error');
-        showToast('خطأ في الاتصال بالنظام', 'error');
-        return false;
+// ============================================================
+// 4. LOADING
+// ============================================================
+
+var LOADING_STATE = {
+    count: 0,
+    timer: null
+};
+
+function showLoading() {
+    LOADING_STATE.count++;
+    
+    var loader = document.getElementById('loadingOverlay');
+    if (!loader) {
+        // إنشاء loader إذا لم يكن موجوداً
+        loader = document.createElement('div');
+        loader.id = 'loadingOverlay';
+        loader.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>جاري التحميل...</p></div>';
+        document.body.appendChild(loader);
     }
-    return true;
+    
+    loader.style.display = 'flex';
+    
+    // منع التمرير
+    document.body.style.overflow = 'hidden';
 }
 
-
-// ============================================================
-// 10. SHARED HELPERS
-// ============================================================
-
-function safeParseFloat(value, defaultValue) {
-    defaultValue = defaultValue || 0;
-    var parsed = parseFloat(value);
-    return isNaN(parsed) ? defaultValue : parsed;
+function hideLoading() {
+    if (LOADING_STATE.count > 0) {
+        LOADING_STATE.count--;
+    }
+    
+    if (LOADING_STATE.count <= 0) {
+        LOADING_STATE.count = 0;
+        
+        var loader = document.getElementById('loadingOverlay');
+        if (loader) {
+            // تأخير بسيط لتحسين UX
+            setTimeout(function() {
+                if (LOADING_STATE.count === 0) {
+                    loader.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            }, CONSTANTS.LOADING_MIN_DURATION);
+        }
+    }
 }
 
-function safeParseInt(value, defaultValue) {
-    defaultValue = defaultValue || 0;
-    var parsed = parseInt(value);
-    return isNaN(parsed) ? defaultValue : parsed;
+// ============================================================
+// 5. TOAST / NOTIFICATIONS
+// ============================================================
+
+function showToast(message, type) {
+    type = type || 'info';
+    
+    var container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    
+    var icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    else if (type === 'error') icon = '❌';
+    else if (type === 'warning') icon = '⚠️';
+    
+    toast.innerHTML = '<span class="toast-icon">' + icon + '</span><span class="toast-message">' + escapeHtml(message) + '</span>';
+    
+    container.appendChild(toast);
+    
+    // Animation in
+    setTimeout(function() {
+        toast.classList.add('show');
+    }, 10);
+    
+    // Auto remove
+    setTimeout(function() {
+        toast.classList.remove('show');
+        setTimeout(function() {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, CONSTANTS.TOAST_DURATION);
+    
+    // تسجيل في Debug
+    debug('🔔 Toast [' + type + ']: ' + message, type === 'error' ? 'error' : 'info');
+}
+
+// ============================================================
+// 6. MODAL HELPERS
+// ============================================================
+
+function openModal(modalId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) {
+        debug('❌ المودال غير موجود: ' + modalId, 'error');
+        return;
+    }
+    
+    modal.classList.add('active');
+    
+    // منع التمرير في الخلفية
+    document.body.style.overflow = 'hidden';
+    
+    // إغلاق عند الضغط على الخلفية
+    modal.onclick = function(e) {
+        if (e.target === modal) {
+            closeModal(modalId);
+        }
+    };
+    
+    // إغلاق عند الضغط على Escape
+    document.addEventListener('keydown', _modalEscHandler);
+    
+    debug('🪟 فتح المودال: ' + modalId, 'info');
+}
+
+function closeModal(modalId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    modal.classList.remove('active');
+    
+    // إعادة التمرير
+    document.body.style.overflow = '';
+    
+    // إزالة مستمع Escape
+    document.removeEventListener('keydown', _modalEscHandler);
+    
+    debug('🪟 إغلاق المودال: ' + modalId, 'info');
+}
+
+function _modalEscHandler(e) {
+    if (e.key === 'Escape') {
+        var activeModals = document.querySelectorAll('.modal.active');
+        if (activeModals.length > 0) {
+            var lastModal = activeModals[activeModals.length - 1];
+            closeModal(lastModal.id);
+        }
+    }
+}
+
+function closeAllModals() {
+    var activeModals = document.querySelectorAll('.modal.active');
+    activeModals.forEach(function(modal) {
+        modal.classList.remove('active');
+    });
+    
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', _modalEscHandler);
+}
+
+// ============================================================
+// 7. CONFIRMATION DIALOGS
+// ============================================================
+
+function confirmAction(message) {
+    return confirm(message || 'هل أنت متأكد من تنفيذ هذا الإجراء؟');
+}
+
+function confirmDelete(itemName) {
+    itemName = itemName || 'هذا العنصر';
+    return confirm('⚠️ هل أنت متأكد من حذف ' + itemName + '؟\n\nلا يمكن التراجع عن هذا الإجراء.');
+}
+
+function confirmArchive(itemName) {
+    itemName = itemName || 'هذا العنصر';
+    return confirm('📦 هل أنت متأكد من أرشفة ' + itemName + '؟\n\nسيتم إخفاؤه من القوائم النشطة.');
+}
+
+// ============================================================
+// 8. SCREEN HELPERS
+// ============================================================
+
+function registerScreenLoader(screenName, loaderFn) {
+    if (!screenName || typeof loaderFn !== 'function') {
+        debug('❌ registerScreenLoader: معطيات غير صحيحة', 'error');
+        return;
+    }
+    
+    APP.screenLoaders[screenName] = loaderFn;
+    debug('✅ تم تسجيل Screen Loader: ' + screenName, 'success');
+}
+
+async function loadScreen(screenName) {
+    if (!screenName) return;
+    
+    APP.currentScreen = screenName;
+    
+    var loader = APP.screenLoaders[screenName];
+    if (loader && typeof loader === 'function') {
+        debug('📱 تحميل الشاشة: ' + screenName, 'info');
+        
+        try {
+            await loader();
+        } catch (err) {
+            debug('❌ خطأ في تحميل الشاشة ' + screenName + ': ' + err.message, 'error');
+            showToast('❌ فشل في تحميل الشاشة', 'error');
+        }
+    } else {
+        debug('⚠️ لا يوجد Screen Loader للشاشة: ' + screenName, 'warn');
+    }
+}
+
+// ============================================================
+// 9. UTILITIES
+// ============================================================
+
+function formatMoney(amount) {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+        return '0 ' + CONSTANTS.CURRENCY;
+    }
+    
+    try {
+        var num = parseFloat(amount);
+        return num.toLocaleString('ar-EG', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        }) + ' ' + CONSTANTS.CURRENCY;
+    } catch (e) {
+        return amount + ' ' + CONSTANTS.CURRENCY;
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    
+    try {
+        var date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '-';
+        
+        return date.toLocaleDateString('ar-EG', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+function formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    
+    try {
+        var date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '-';
+        
+        return date.toLocaleDateString('ar-EG', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+function formatDateForInput(dateStr) {
+    if (!dateStr) return '';
+    
+    try {
+        var date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '';
+        
+        var year = date.getFullYear();
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var day = String(date.getDate()).padStart(2, '0');
+        
+        return year + '-' + month + '-' + day;
+    } catch (e) {
+        return '';
+    }
+}
+
+function getTodayDate() {
+    return formatDateForInput(new Date());
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    
+    var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    
+    return String(text).replace(/[&<>"']/g, function(m) {
+        return map[m];
+    });
+}
+
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    
+    maxLength = maxLength || 50;
+    
+    if (text.length <= maxLength) return text;
+    
+    return text.substring(0, maxLength) + '...';
+}
+
+function isEmpty(value) {
+    if (value === null || value === undefined) return true;
+    if (typeof value === 'string') return value.trim() === '';
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value === 'object') return Object.keys(value).length === 0;
+    return false;
+}
+
+function isPositiveNumber(value) {
+    var num = parseFloat(value);
+    return !isNaN(num) && num > 0;
 }
 
 function generateId() {
-    return 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
 function debounce(func, wait) {
     var timeout;
     return function() {
-        var context = this, args = arguments;
+        var context = this;
+        var args = arguments;
+        
         clearTimeout(timeout);
+        
         timeout = setTimeout(function() {
             func.apply(context, args);
-        }, wait);
+        }, wait || 300);
     };
 }
 
-function throttle(func, limit) {
-    var inThrottle;
-    return function() {
-        var context = this, args = arguments;
-        if (!inThrottle) {
-            func.apply(context, args);
-            inThrottle = true;
-            setTimeout(function() {
-                inThrottle = false;
-            }, limit);
-        }
-    };
-}
-
-function deepClone(obj) {
-    if (obj === null || typeof obj !== 'object') return obj;
-    try {
-        return JSON.parse(JSON.stringify(obj));
-    } catch (e) {
-        return obj;
-    }
-}
-
-function objectToArray(obj) {
-    if (!obj || typeof obj !== 'object') return [];
-    return Object.keys(obj).map(function(key) {
-        return { key: key, value: obj[key] };
-    });
-}
-
-function arrayToObject(arr, keyField) {
-    if (!Array.isArray(arr)) return {};
-    var obj = {};
-    arr.forEach(function(item) {
-        if (item && item[keyField]) {
-            obj[item[keyField]] = item;
-        }
-    });
-    return obj;
-}
 // ============================================================
-// DEBUG PANEL - New Design (Floating Button + Side Panel)
+// 10. AUTH HELPERS (Wrapper Functions)
 // ============================================================
 
-function initDebugPanel() {
-    if (!APP.DEBUG_MODE) return;
+// ملاحظة: هذه الدوال تستدعي الدوال المعرفة في auth.js
+// إذا لم تكن موجودة، تعيد قيم افتراضية آمنة
 
-    // إزالة الـ Debug القديم إذا كان موجوداً
-    var oldDebug = document.getElementById('debugWidgetContainer');
-    if (oldDebug) oldDebug.remove();
-
-    // إنشاء الزر العائم
-    var btn = document.createElement('button');
-    btn.id = 'debugFloatingBtn';
-    btn.innerHTML = '🐞';
-    btn.title = 'Debug Panel';
-    btn.onclick = toggleDebugPanel;
-    document.body.appendChild(btn);
-
-    // إنشاء الـ Panel الجانبي
-    var panel = document.createElement('div');
-    panel.id = 'debugPanel';
-    panel.innerHTML = 
-        '<div id="debugPanelHeader">' +
-            '<h3>🐞 Debug Panel (<span id="debugCounter">0</span>)</h3>' +
-            '<button id="debugCloseBtn" onclick="toggleDebugPanel()">✕</button>' +
-        '</div>' +
-        '<div id="debugPanelContent">' +
-            '<div id="debugLog"></div>' +
-            '<div id="debugPanelControls">' +
-                '<button onclick="clearDebug()">🗑️ Clear</button>' +
-                '<button onclick="copyDebug()">📋 Copy</button>' +
-            '</div>' +
-        '</div>';
-    document.body.appendChild(panel);
-
-    debug('✅ Debug Panel initialized', 'success');
-}
-
-function toggleDebugPanel() {
-    var panel = document.getElementById('debugPanel');
-    if (panel) {
-        panel.classList.toggle('open');
+function canEdit() {
+    if (typeof window._canEdit === 'function') {
+        return window._canEdit();
     }
-}
-
-function clearDebug() {
-    var log = document.getElementById('debugLog');
-    if (log) log.innerHTML = '';
-    var counter = document.getElementById('debugCounter');
-    if (counter) counter.innerText = '0';
-}
-
-function copyDebug() {
-    var log = document.getElementById('debugLog');
-    if (log) {
-        navigator.clipboard.writeText(log.innerText).then(function() {
-            showToast('✅ تم نسخ السجل', 'success');
-        });
-    }
-}
-
-function updateDebugCount() {
-    var log = document.getElementById('debugLog');
-    if (log) {
-        var lines = log.innerText.split('\n').filter(function(l) { return l.trim().length > 0; });
-        var counter = document.getElementById('debugCounter');
-        if (counter) counter.innerText = lines.length;
-    }
-}
-
-function appendDebugLog(msg, type) {
-    var log = document.getElementById('debugLog');
-    if (!log) return;
     
-    var time = new Date().toLocaleTimeString();
-    var color = '#00ff00';
-    if (type === 'error') color = '#ff3333';
-    if (type === 'warn') color = '#ffcc00';
-    if (type === 'success') color = '#00ccff';
-
-    log.innerHTML += '<div style="color:' + color + '">[' + time + '] ' + msg + '</div>';
-    updateDebugCount();
-    log.scrollTop = log.scrollHeight;
-}
-
-function debug(msg, type) {
-    if (!APP.DEBUG_MODE) return;
-    type = type || 'info';
-    appendDebugLog(msg, type);
+    // Fallback: التحقق من userProfile
+    if (APP.userProfile) {
+        return APP.userProfile.permission === 'admin' || APP.userProfile.role === 'admin';
+    }
     
-    // أيضاً في console
-    if (type === 'error') console.error(msg);
-    else if (type === 'warn') console.warn(msg);
-    else console.log(msg);
+    return false;
 }
 
-// استدعاء initDebugPanel عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof initDebugPanel === 'function') {
-        initDebugPanel();
+function isAdmin() {
+    if (typeof window._isAdmin === 'function') {
+        return window._isAdmin();
+    }
+    
+    if (APP.userProfile) {
+        return APP.userProfile.role === 'admin';
+    }
+    
+    return false;
+}
+
+function getCurrentUser() {
+    return APP.user;
+}
+
+function getUserProfile() {
+    return APP.userProfile;
+}
+
+// ============================================================
+// 11. ACTIVITY LOG HELPER
+// ============================================================
+
+async function logActivity(action, entityType, entityId, oldValue, newValue, details, actionType) {
+    if (typeof window.logActivityToDB === 'function') {
+        try {
+            await window.logActivityToDB(action, entityType, entityId, oldValue, newValue, details, actionType);
+        } catch (err) {
+            debug('❌ فشل في تسجيل النشاط: ' + err.message, 'error');
+        }
+    } else {
+        debug('⚠️ window.logActivityToDB غير معرفة', 'warn');
+    }
+}
+
+// ============================================================
+// 12. NAVIGATION HELPERS
+// ============================================================
+
+function navigateTo(screenName) {
+    if (typeof window.showScreen === 'function') {
+        window.showScreen(screenName);
+    } else {
+        debug('⚠️ window.showScreen غير معرفة', 'warn');
+    }
+}
+
+// ============================================================
+// 13. INITIALIZATION
+// ============================================================
+
+function initCore() {
+    debug('⚙️ بدء تهيئة core.js (v' + APP.VERSION + ')', 'info');
+    
+    // تهيئة Debug Panel
+    initDebugPanel();
+    
+    // الاستماع لأحداث DOM
+    document.addEventListener('DOMContentLoaded', function() {
+        debug('✅ DOM جاهز', 'success');
+    });
+    
+    debug('✅ core.js جاهز', 'success');
+}
+
+// ============================================================
+// 14. GLOBAL ERROR HANDLER
+// ============================================================
+
+window.onerror = function(message, source, lineno, colno, error) {
+    var errorMsg = 'خطأ غير متوقع: ' + message + ' في ' + source + ':' + lineno;
+    
+    debug('❌ ' + errorMsg, 'error');
+    
+    if (APP.DEBUG_MODE) {
+        showToast('❌ حدث خطأ غير متوقع. راجع Debug Panel.', 'error');
+    }
+    
+    return false;
+};
+
+window.addEventListener('unhandledrejection', function(event) {
+    var reason = event.reason;
+    var message = reason && reason.message ? reason.message : String(reason);
+    
+    debug('❌ Unhandled Promise Rejection: ' + message, 'error');
+    
+    if (APP.DEBUG_MODE) {
+        showToast('❌ حدث خطأ في العملية. راجع Debug Panel.', 'error');
     }
 });
+
 // ============================================================
-// END OF CORE.JS
+// 15. STARTUP
 // ============================================================
+
+// تهيئة core.js عند تحميل الملف
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCore);
+    } else {
+        initCore();
+    }
+}
