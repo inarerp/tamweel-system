@@ -1,35 +1,49 @@
 // ============================================================
 // نظام إدارة التمويل - Core Module
-// Version: 6.1.0 (Production Ready - Complete Rewrite)
+// Version: 7.0.0 (Final Production - Fully Integrated)
 // Last Updated: 2026-08-03
-// 
-// يحتوي على:
-// - APP State & Constants
-// - Debug System (زر عائم + Panel جانبي)
-// - Supabase Initialization
-// - Auth Initialization
-// - Loading & Notifications
-// - Modal Helpers
+// ============================================================
+//
+// المسؤوليات:
+// - تعريف APP Object والثوابت
+// - نظام Debug Panel (زر عائم + Panel جانبي)
+// - تهيئة Supabase
+// - دوال مساعدة (Utilities)
+// - إدارة Modals والـ Loading والـ Toasts
 // - Confirmation Dialogs
-// - Screen Helpers
-// - Utilities
-// - Error Handling
+//
+// يعتمد عليه:
+// - app.js (Bootstrap & Router)
+// - auth.js (Authentication)
+// - operations.js, clients.js, investors.js, transfers.js, users.js, dashboard.js, activity.js
+//
+// لا يقوم بـ:
+// - Bootstrap (هذا من مسؤولية app.js)
+// - تهيئة الوحدات الأخرى (هذا من مسؤولية app.js)
 // ============================================================
 
 // ============================================================
-// 1. APP OBJECT & CONSTANTS
+// 1. APP OBJECT (الحاوية المركزية للتطبيق)
 // ============================================================
 
 var APP = {
     supabase: null,
-    user: null,
-    userProfile: null,
-    DEBUG_MODE: true,
-    VERSION: '6.1.0',
+    user: null,              // Alias لـ currentUser (للتوافق)
+    currentUser: null,       // المستخدم الحالي من Supabase Auth
+    userProfile: null,       // Alias لملف المستخدم
+    userRole: null,          // الدور (admin, viewer, client, investor)
+    userPermission: null,    // الصلاحية (admin, viewer)
+    currentEntityId: null,   // كيان المستخدم (client_id أو investor_id)
+    currentOperation: null,
+    currentOperationData: null,
     currentScreen: null,
-    screenLoaders: {},
-    isLoading: false
+    DEBUG_MODE: true,
+    VERSION: '7.0.0'
 };
+
+// ============================================================
+// 2. CONSTANTS (الثوابت العامة)
+// ============================================================
 
 var CONSTANTS = {
     TOAST_DURATION: 4000,
@@ -39,8 +53,36 @@ var CONSTANTS = {
     CURRENCY: 'ج.م'
 };
 
+var USER_ROLES = {
+    ADMIN: 'admin',
+    VIEWER: 'viewer',
+    CLIENT: 'client',
+    INVESTOR: 'investor'
+};
+
+var PERMISSIONS = {
+    ADMIN: 'admin',
+    VIEWER: 'viewer'
+};
+
 // ============================================================
-// 2. DEBUG SYSTEM (New Design - Floating Button + Side Panel)
+// 3. SCREEN LOADERS REGISTRY (مطلوب من app.js)
+// ============================================================
+
+var SCREEN_LOADERS = {};
+
+function registerScreenLoader(screenName, loaderFn) {
+    if (!screenName || typeof loaderFn !== 'function') {
+        debug('❌ registerScreenLoader: معطيات غير صحيحة لـ ' + screenName, 'error');
+        return;
+    }
+    
+    SCREEN_LOADERS[screenName] = loaderFn;
+    debug('✅ تم تسجيل Screen Loader: ' + screenName, 'success');
+}
+
+// ============================================================
+// 4. DEBUG SYSTEM (زر عائم + Panel جانبي)
 // ============================================================
 
 var DEBUG_STATE = {
@@ -51,7 +93,6 @@ var DEBUG_STATE = {
 function initDebugPanel() {
     if (!APP.DEBUG_MODE) return;
     
-    // الانتظار حتى يتم تحميل DOM بالكامل
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _createDebugPanel);
     } else {
@@ -61,8 +102,7 @@ function initDebugPanel() {
 
 function _createDebugPanel() {
     // إزالة أي Debug قديم
-    var oldElements = ['debugWidgetContainer', 'debugFloatingBtn', 'debugPanel'];
-    oldElements.forEach(function(id) {
+    ['debugWidgetContainer', 'debugFloatingBtn', 'debugPanel'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.remove();
     });
@@ -97,7 +137,7 @@ function _createDebugPanel() {
     
     document.body.appendChild(panel);
     
-    // ربط الأحداث بعد إضافة العناصر للـ DOM
+    // ربط الأحداث بعد الإضافة للـ DOM
     setTimeout(function() {
         var closeBtn = document.getElementById('debugCloseBtn');
         var clearBtn = document.getElementById('debugClearBtn');
@@ -119,7 +159,6 @@ function toggleDebugPanel() {
     
     if (DEBUG_STATE.isOpen) {
         panel.classList.add('open');
-        // Scroll to bottom
         var log = document.getElementById('debugLog');
         if (log) log.scrollTop = log.scrollHeight;
     } else {
@@ -127,7 +166,16 @@ function toggleDebugPanel() {
     }
 }
 
-function clearDebug() {
+// ============================================================
+// 4.1 ALIASES FOR APP.JS COMPATIBILITY
+// ============================================================
+// app.js يستدعي: toggleDebug(), clearDebugLog(), copyDebugLog()
+
+window.toggleDebug = toggleDebugPanel;
+window.toggleDebugPanel = toggleDebugPanel;
+
+window.clearDebugLog = function() { clearDebug(); };
+window.clearDebug = function() {
     var log = document.getElementById('debugLog');
     if (log) log.innerHTML = '';
     
@@ -135,9 +183,10 @@ function clearDebug() {
     if (counter) counter.innerText = '0';
     
     DEBUG_STATE.logCount = 0;
-}
+};
 
-function copyDebug() {
+window.copyDebugLog = function() { copyDebug(); };
+window.copyDebug = function() {
     var log = document.getElementById('debugLog');
     if (!log) return;
     
@@ -152,7 +201,7 @@ function copyDebug() {
     } else {
         _fallbackCopy(text);
     }
-}
+};
 
 function _fallbackCopy(text) {
     var textarea = document.createElement('textarea');
@@ -174,17 +223,14 @@ function _fallbackCopy(text) {
 
 function updateDebugCount() {
     var counter = document.getElementById('debugCounter');
-    if (counter) {
-        counter.innerText = DEBUG_STATE.logCount;
-    }
+    if (counter) counter.innerText = DEBUG_STATE.logCount;
 }
 
 function appendDebugLog(msg, type) {
     var log = document.getElementById('debugLog');
     if (!log) return;
     
-    // تحديد اللون حسب النوع
-    var color = '#00ff00'; // default: green
+    var color = '#00ff00';
     if (type === 'error') color = '#ff4444';
     else if (type === 'warn') color = '#ffcc00';
     else if (type === 'success') color = '#00ccff';
@@ -196,18 +242,13 @@ function appendDebugLog(msg, type) {
     entry.textContent = '[' + time + '] ' + msg;
     
     log.appendChild(entry);
-    
-    // تحديد عدد السجلات
     DEBUG_STATE.logCount++;
     
-    // إزالة السجلات القديمة إذا تجاوزت الحد
     while (log.children.length > CONSTANTS.MAX_LOG_ENTRIES) {
         log.removeChild(log.firstChild);
     }
     
     updateDebugCount();
-    
-    // Auto-scroll to bottom
     log.scrollTop = log.scrollHeight;
 }
 
@@ -215,109 +256,44 @@ function debug(msg, type) {
     if (!APP.DEBUG_MODE) return;
     
     type = type || 'info';
-    
-    // إضافة إلى الـ Panel
     appendDebugLog(msg, type);
     
-    // إضافة إلى console
     try {
         if (type === 'error') console.error('[DEBUG] ' + msg);
         else if (type === 'warn') console.warn('[DEBUG] ' + msg);
         else if (type === 'success') console.info('[DEBUG] ' + msg);
         else console.log('[DEBUG] ' + msg);
-    } catch (e) {
-        // console غير متاح
-    }
+    } catch (e) {}
 }
 
 // ============================================================
-// 3. SUPABASE INITIALIZATION
+// 5. SUPABASE INITIALIZATION (يُستدعى من app.js)
 // ============================================================
 
-async function initSupabase() {
+function initSupabase() {
     debug('⚙️ بدء تهيئة Supabase...', 'info');
     
-    // Supabase Configuration
     var SUPABASE_URL = 'https://znkexrtkqzmsqnmzvxoq.supabase.co';
-    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTk4NDg2MDAsImV4cCI6MjAzNTQyNDYwMH0.b8X7Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9Z8Z9';
     
-    // التحقق من وجود مكتبة Supabase
+    // ✅ المفتاح الصحيح من Supabase Dashboard
+    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpua2V4cnRrcXptc3FubXp2eG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MTc3NDYsImV4cCI6MjEwMDk5Mzc0Nn0.QyPjqtKy0dS-uoXiefiPfXURnBqR_FBJcZMpGWj_1Rs';
+    
     if (typeof supabase === 'undefined') {
-        debug('❌ مكتبة Supabase غير محملة. تأكد من إضافة <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> في index.html', 'error');
+        debug('❌ مكتبة Supabase غير محملة. تأكد من وجود <script> في index.html', 'error');
         showToast('❌ فشل تحميل مكتبة Supabase', 'error');
         return false;
     }
     
     try {
-        // تهيئة Supabase Client
         APP.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        // اختبار الاتصال
-        var { data, error } = await APP.supabase.from('clients').select('id').limit(1);
-        
-        if (error) {
-            debug('⚠️ تحذير: ' + error.message, 'warn');
-        }
-        
         debug('✅ Supabase تم تهيئته بنجاح', 'success');
         return true;
-        
     } catch (err) {
         debug('❌ خطأ في initSupabase: ' + err.message, 'error');
-        showToast('❌ فشل في الاتصال بقاعدة البيانات', 'error');
+        showToast('❌ فشل في تهيئة قاعدة البيانات', 'error');
         return false;
     }
 }
-
-// ============================================================
-// 4. AUTH INITIALIZATION
-// ============================================================
-
-async function initAuth() {
-    debug('⚙️ بدء تهيئة المصادقة...', 'info');
-    
-    if (!APP.supabase) {
-        debug('❌ Supabase غير جاهز', 'error');
-        return false;
-    }
-    
-    try {
-        // جلب المستخدم الحالي
-        var { data: { user } } = await APP.supabase.auth.getUser();
-        
-        if (user) {
-            APP.user = user;
-            debug('✅ المستخدم مسجل: ' + user.email, 'success');
-            
-            // جلب ملف المستخدم
-            var { data: profile, error } = await APP.supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-            
-            if (error) {
-                debug('⚠️ لم يتم العثور على ملف المستخدم: ' + error.message, 'warn');
-            } else {
-                APP.userProfile = profile;
-                debug('✅ ملف المستخدم: ' + profile.role, 'success');
-            }
-            
-            return true;
-        } else {
-            debug('ℹ️ لا يوجد مستخدم مسجل', 'info');
-            return false;
-        }
-        
-    } catch (err) {
-        debug('❌ خطأ في initAuth: ' + err.message, 'error');
-        return false;
-    }
-}
-
-// ============================================================
-// 5. SUPABASE HELPERS
-// ============================================================
 
 function isSupabaseReady() {
     return !!(APP.supabase);
@@ -341,25 +317,19 @@ async function runQuery(queryFn, options) {
         }
         
         return result;
-        
     } catch (err) {
         debug('❌ خطأ في runQuery [' + context + ']: ' + err.message, 'error');
         
-        if (throwError) {
-            throw err;
-        }
-        
+        if (throwError) throw err;
         return { data: null, error: err };
     }
 }
 
 function handleSupabaseError(err, context) {
     context = context || 'Operation';
-    
     var message = 'خطأ في ' + context;
     
     if (err && err.message) {
-        // ترجمة رسائل Supabase الشائعة
         if (err.message.includes('duplicate key')) {
             message = '❌ البيانات مكررة. يرجى التحقق من المدخلات.';
         } else if (err.message.includes('foreign key')) {
@@ -370,13 +340,14 @@ function handleSupabaseError(err, context) {
             message = '❌ انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.';
         } else if (err.message.includes('fetch')) {
             message = '❌ فشل الاتصال بالخادم. يرجى التحقق من الإنترنت.';
+        } else if (err.message.includes('Invalid API key')) {
+            message = '❌ مفتاح API غير صحيح. راجع الإعدادات.';
         } else {
             message = '❌ ' + err.message;
         }
     }
     
     debug('❌ Error in ' + context + ': ' + (err.message || err), 'error');
-    
     return message;
 }
 
@@ -384,17 +355,13 @@ function handleSupabaseError(err, context) {
 // 6. LOADING
 // ============================================================
 
-var LOADING_STATE = {
-    count: 0,
-    timer: null
-};
+var LOADING_STATE = { count: 0 };
 
 function showLoading() {
     LOADING_STATE.count++;
     
     var loader = document.getElementById('loadingOverlay');
     if (!loader) {
-        // إنشاء loader إذا لم يكن موجوداً
         loader = document.createElement('div');
         loader.id = 'loadingOverlay';
         loader.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>جاري التحميل...</p></div>';
@@ -402,22 +369,16 @@ function showLoading() {
     }
     
     loader.style.display = 'flex';
-    
-    // منع التمرير
     document.body.style.overflow = 'hidden';
 }
 
 function hideLoading() {
-    if (LOADING_STATE.count > 0) {
-        LOADING_STATE.count--;
-    }
+    if (LOADING_STATE.count > 0) LOADING_STATE.count--;
     
     if (LOADING_STATE.count <= 0) {
         LOADING_STATE.count = 0;
-        
         var loader = document.getElementById('loadingOverlay');
         if (loader) {
-            // تأخير بسيط لتحسين UX
             setTimeout(function() {
                 if (LOADING_STATE.count === 0) {
                     loader.style.display = 'none';
@@ -429,7 +390,7 @@ function hideLoading() {
 }
 
 // ============================================================
-// 7. TOAST / NOTIFICATIONS
+// 7. TOAST NOTIFICATIONS
 // ============================================================
 
 function showToast(message, type) {
@@ -452,25 +413,17 @@ function showToast(message, type) {
     else if (type === 'warning') icon = '⚠️';
     
     toast.innerHTML = '<span class="toast-icon">' + icon + '</span><span class="toast-message">' + escapeHtml(message) + '</span>';
-    
     container.appendChild(toast);
     
-    // Animation in
-    setTimeout(function() {
-        toast.classList.add('show');
-    }, 10);
+    setTimeout(function() { toast.classList.add('show'); }, 10);
     
-    // Auto remove
     setTimeout(function() {
         toast.classList.remove('show');
         setTimeout(function() {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 300);
     }, CONSTANTS.TOAST_DURATION);
     
-    // تسجيل في Debug
     debug('🔔 Toast [' + type + ']: ' + message, type === 'error' ? 'error' : 'info');
 }
 
@@ -486,20 +439,13 @@ function openModal(modalId) {
     }
     
     modal.classList.add('active');
-    
-    // منع التمرير في الخلفية
     document.body.style.overflow = 'hidden';
     
-    // إغلاق عند الضغط على الخلفية
     modal.onclick = function(e) {
-        if (e.target === modal) {
-            closeModal(modalId);
-        }
+        if (e.target === modal) closeModal(modalId);
     };
     
-    // إغلاق عند الضغط على Escape
     document.addEventListener('keydown', _modalEscHandler);
-    
     debug('🪟 فتح المودال: ' + modalId, 'info');
 }
 
@@ -508,13 +454,8 @@ function closeModal(modalId) {
     if (!modal) return;
     
     modal.classList.remove('active');
-    
-    // إعادة التمرير
     document.body.style.overflow = '';
-    
-    // إزالة مستمع Escape
     document.removeEventListener('keydown', _modalEscHandler);
-    
     debug('🪟 إغلاق المودال: ' + modalId, 'info');
 }
 
@@ -522,8 +463,7 @@ function _modalEscHandler(e) {
     if (e.key === 'Escape') {
         var activeModals = document.querySelectorAll('.modal.active');
         if (activeModals.length > 0) {
-            var lastModal = activeModals[activeModals.length - 1];
-            closeModal(lastModal.id);
+            closeModal(activeModals[activeModals.length - 1].id);
         }
     }
 }
@@ -533,7 +473,6 @@ function closeAllModals() {
     activeModals.forEach(function(modal) {
         modal.classList.remove('active');
     });
-    
     document.body.style.overflow = '';
     document.removeEventListener('keydown', _modalEscHandler);
 }
@@ -557,41 +496,75 @@ function confirmArchive(itemName) {
 }
 
 // ============================================================
-// 10. SCREEN HELPERS
+// 10. PERMISSIONS (مطلوب من auth.js و operations.js)
 // ============================================================
 
-function registerScreenLoader(screenName, loaderFn) {
-    if (!screenName || typeof loaderFn !== 'function') {
-        debug('❌ registerScreenLoader: معطيات غير صحيحة', 'error');
-        return;
-    }
-    
-    APP.screenLoaders[screenName] = loaderFn;
-    debug('✅ تم تسجيل Screen Loader: ' + screenName, 'success');
+function canEdit() {
+    // إذا كان المستخدم Admin أو لديه صلاحية admin
+    if (APP.userRole === USER_ROLES.ADMIN) return true;
+    if (APP.userPermission === PERMISSIONS.ADMIN) return true;
+    return false;
 }
 
-async function loadScreen(screenName) {
-    if (!screenName) return;
+function isAdmin() {
+    return APP.userRole === USER_ROLES.ADMIN;
+}
+
+function getCurrentUser() {
+    return APP.currentUser || APP.user;
+}
+
+function getUserProfile() {
+    return APP.userProfile;
+}
+
+// دالة تطبق الصلاحيات على الواجهة (مطلوبة من auth.js)
+function applyPermissions() {
+    debug('🔐 تطبيق الصلاحيات...', 'info');
     
-    APP.currentScreen = screenName;
+    var role = APP.userRole;
+    var permission = APP.userPermission;
     
-    var loader = APP.screenLoaders[screenName];
-    if (loader && typeof loader === 'function') {
-        debug('📱 تحميل الشاشة: ' + screenName, 'info');
-        
-        try {
-            await loader();
-        } catch (err) {
-            debug('❌ خطأ في تحميل الشاشة ' + screenName + ': ' + err.message, 'error');
-            showToast('❌ فشل في تحميل الشاشة', 'error');
+    debug('👤 Role: ' + role + ', Permission: ' + permission, 'info');
+    
+    // إذا كان المستخدم ليس Admin، نخفي عناصر الإدارة
+    if (!canEdit()) {
+        var editButtons = document.querySelectorAll('[data-action*="edit"], [data-action*="delete"], [data-action*="archive"], [data-action*="add"]');
+        editButtons.forEach(function(btn) {
+            // نتأكد من أنها ليست أزرار View
+            if (!btn.getAttribute('data-action').includes('view') && 
+                !btn.getAttribute('data-action').includes('open') &&
+                !btn.getAttribute('data-action').includes('show')) {
+                btn.style.display = 'none';
+            }
+        });
+    }
+    
+    // Client: يرى فقط شاشته
+    if (role === USER_ROLES.CLIENT) {
+        _hideScreensForRole(['dashboard', 'myAccount']);
+    }
+    
+    // Investor: يرى فقط شاشته
+    if (role === USER_ROLES.INVESTOR) {
+        _hideScreensForRole(['dashboard', 'myAccount']);
+    }
+    
+    debug('✅ تم تطبيق الصلاحيات', 'success');
+}
+
+function _hideScreensForRole(allowedScreens) {
+    var navButtons = document.querySelectorAll('.nav-btn, .nav-item');
+    navButtons.forEach(function(btn) {
+        var screen = btn.getAttribute('data-screen');
+        if (screen && allowedScreens.indexOf(screen) === -1) {
+            btn.style.display = 'none';
         }
-    } else {
-        debug('⚠️ لا يوجد Screen Loader للشاشة: ' + screenName, 'warn');
-    }
+    });
 }
 
 // ============================================================
-// 11. UTILITIES
+// 11. UTILITIES (دوال مساعدة)
 // ============================================================
 
 function formatMoney(amount) {
@@ -667,6 +640,21 @@ function getTodayDate() {
     return formatDateForInput(new Date());
 }
 
+// ✅ إضافة أيام لتاريخ (مطلوب من app.js - calculateEndDate)
+function addDays(dateStr, days) {
+    if (!dateStr) return null;
+    
+    try {
+        var date = new Date(dateStr);
+        if (isNaN(date.getTime())) return null;
+        
+        date.setDate(date.getDate() + parseInt(days));
+        return date;
+    } catch (e) {
+        return null;
+    }
+}
+
 function escapeHtml(text) {
     if (!text) return '';
     
@@ -685,11 +673,8 @@ function escapeHtml(text) {
 
 function truncateText(text, maxLength) {
     if (!text) return '';
-    
     maxLength = maxLength || 50;
-    
     if (text.length <= maxLength) return text;
-    
     return text.substring(0, maxLength) + '...';
 }
 
@@ -706,6 +691,33 @@ function isPositiveNumber(value) {
     return !isNaN(num) && num > 0;
 }
 
+// ✅ التحقق من صحة البريد الإلكتروني (مطلوب من auth.js)
+function isEmail(email) {
+    if (!email) return false;
+    var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+}
+
+// ✅ تغيير حالة الزر (مطلوب من auth.js)
+function setButtonLoading(btnId, isLoading) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    
+    if (isLoading) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerText;
+        btn.innerText = '⏳ جاري...';
+        btn.classList.add('loading');
+    } else {
+        btn.disabled = false;
+        if (btn.dataset.originalText) {
+            btn.innerText = btn.dataset.originalText;
+            delete btn.dataset.originalText;
+        }
+        btn.classList.remove('loading');
+    }
+}
+
 function generateId() {
     return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
@@ -715,9 +727,7 @@ function debounce(func, wait) {
     return function() {
         var context = this;
         var args = arguments;
-        
         clearTimeout(timeout);
-        
         timeout = setTimeout(function() {
             func.apply(context, args);
         }, wait || 300);
@@ -725,47 +735,7 @@ function debounce(func, wait) {
 }
 
 // ============================================================
-// 12. AUTH HELPERS (Wrapper Functions)
-// ============================================================
-
-// ملاحظة: هذه الدوال تستدعي الدوال المعرفة في auth.js
-// إذا لم تكن موجودة، تعيد قيم افتراضية آمنة
-
-function canEdit() {
-    if (typeof window._canEdit === 'function') {
-        return window._canEdit();
-    }
-    
-    // Fallback: التحقق من userProfile
-    if (APP.userProfile) {
-        return APP.userProfile.permission === 'admin' || APP.userProfile.role === 'admin';
-    }
-    
-    return false;
-}
-
-function isAdmin() {
-    if (typeof window._isAdmin === 'function') {
-        return window._isAdmin();
-    }
-    
-    if (APP.userProfile) {
-        return APP.userProfile.role === 'admin';
-    }
-    
-    return false;
-}
-
-function getCurrentUser() {
-    return APP.user;
-}
-
-function getUserProfile() {
-    return APP.userProfile;
-}
-
-// ============================================================
-// 13. ACTIVITY LOG HELPER
+// 12. ACTIVITY LOG HELPER
 // ============================================================
 
 async function logActivity(action, entityType, entityId, oldValue, newValue, details, actionType) {
@@ -781,7 +751,7 @@ async function logActivity(action, entityType, entityId, oldValue, newValue, det
 }
 
 // ============================================================
-// 14. NAVIGATION HELPERS
+// 13. NAVIGATION HELPER
 // ============================================================
 
 function navigateTo(screenName) {
@@ -793,58 +763,21 @@ function navigateTo(screenName) {
 }
 
 // ============================================================
-// 15. GLOBAL FUNCTIONS (Make available for onclick handlers)
-// ============================================================
-
-// جعل الدوال متاحة في window scope لاستخدامها في onclick
-window.toggleDebugPanel = toggleDebugPanel;
-window.clearDebug = clearDebug;
-window.copyDebug = copyDebug;
-
-// ============================================================
-// 16. INITIALIZATION
+// 14. INITIALIZATION (يتم استدعاؤها عند تحميل الملف فقط)
 // ============================================================
 
 function initCore() {
     debug('⚙️ بدء تهيئة core.js (v' + APP.VERSION + ')', 'info');
-    
-    // تهيئة Debug Panel
     initDebugPanel();
-    
-    // الاستماع لأحداث DOM
-    document.addEventListener('DOMContentLoaded', async function() {
-        debug('✅ DOM جاهز', 'success');
-        
-        // تهيئة Supabase
-        var supabaseReady = await initSupabase();
-        
-        if (supabaseReady) {
-            // تهيئة المصادقة
-            await initAuth();
-            
-            // تهيئة باقي الوحدات
-            if (typeof initOperations === 'function') initOperations();
-            if (typeof initClients === 'function') initClients();
-            if (typeof initInvestors === 'function') initInvestors();
-            if (typeof initTransfers === 'function') initTransfers();
-            if (typeof initUsers === 'function') initUsers();
-            if (typeof initDashboard === 'function') initDashboard();
-            if (typeof initActivity === 'function') initActivity();
-            
-            debug('✅ جميع الوحدات جاهزة', 'success');
-        }
-    });
-    
     debug('✅ core.js جاهز', 'success');
 }
 
 // ============================================================
-// 17. GLOBAL ERROR HANDLER
+// 15. GLOBAL ERROR HANDLER
 // ============================================================
 
 window.onerror = function(message, source, lineno, colno, error) {
     var errorMsg = 'خطأ غير متوقع: ' + message + ' في ' + source + ':' + lineno;
-    
     debug('❌ ' + errorMsg, 'error');
     
     if (APP.DEBUG_MODE) {
@@ -857,19 +790,15 @@ window.onerror = function(message, source, lineno, colno, error) {
 window.addEventListener('unhandledrejection', function(event) {
     var reason = event.reason;
     var message = reason && reason.message ? reason.message : String(reason);
-    
     debug('❌ Unhandled Promise Rejection: ' + message, 'error');
-    
-    if (APP.DEBUG_MODE) {
-        showToast('❌ حدث خطأ في العملية. راجع Debug Panel.', 'error');
-    }
 });
 
 // ============================================================
-// 18. STARTUP
+// 16. STARTUP (تشغيل initCore فور تحميل الملف)
 // ============================================================
 
-// تهيئة core.js عند تحميل الملف
+// تشغيل initCore فوراً (فقط لإنشاء Debug Panel)
+// ملاحظة: تهيئة Supabase و Auth تتم من app.js
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initCore);
