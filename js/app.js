@@ -219,7 +219,12 @@ function handleGlobalAction(action, target, event) {
             var screen = target.getAttribute('data-screen');
             if (screen) showScreen(screen, target);
             break;
-        
+        case 'deleteOpInvestor':
+    var opInvestorId = target.getAttribute('data-param');
+    if (typeof deleteOpInvestor === 'function' && opInvestorId) {
+        deleteOpInvestor(opInvestorId);
+    }
+    break;
         // Auth
         case 'handleLoginClick':
             if (typeof handleLoginClick === 'function') handleLoginClick();
