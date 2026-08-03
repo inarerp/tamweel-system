@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - Transfers Module (Parties Ledger)
-// Version: 5.1.0 (Fix: Dynamic Entity Rows)
+// Version: 5.2.0 (Bulletproof Entity Rows)
 // Last Updated: 2026-08-04
 // ============================================================
 
@@ -315,9 +315,6 @@ async function openTransferModal(transferId, prefill) {
         opEl.innerHTML = options;
     }
 
-    // ✅ إنشاء حقول الأطراف ديناميكياً إذا لم تكن موجودة
-    _ensureEntityRows();
-
     resetTransferForm();
 
     if (transferId) {
@@ -346,52 +343,46 @@ function editTransfer(transferId) {
 }
 
 // ============================================================
-// 7. ✅ DYNAMIC ENTITY ROWS (الحل الجذري)
+// 7. ✅ BULLETPROOF ENTITY ROWS (الحل الجذري النهائي)
 // ============================================================
+// الفكرة: نمسح أي حقول قديمة ونبني حقول جديدة بإستايل مضمون
+// لا تعتمد على الـ HTML الموجود ولا على الـ CSS
 
-function _ensureEntityRows() {
-    var fromTypeEl = document.getElementById('transferFromType');
-    var toTypeEl = document.getElementById('transferToType');
+function _rebuildEntityRow(side, type) {
+    var typeEl = document.getElementById(side === 'from' ? 'transferFromType' : 'transferToType');
+    if (!typeEl) return;
 
-    // إنشاء صف "من" إذا لم يوجد
-    if (fromTypeEl && !document.getElementById('transferFromEntityRow')) {
-        var fromGroup = fromTypeEl.closest('.form-group');
-        if (fromGroup) {
-            var fromRow = document.createElement('div');
-            fromRow.className = 'form-group';
-            fromRow.id = 'transferFromEntityRow';
-            fromRow.style.display = 'none';
-            fromRow.innerHTML = '<label id="transferFromEntityLabel" style="display:block;font-weight:bold;color:#667eea;margin-bottom:6px;">اختر الطرف *</label>' +
-                '<select id="transferFromEntity" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>';
-            fromGroup.insertAdjacentElement('afterend', fromRow);
-            debug('✅ تم إنشاء حقل اختيار الطرف المصدر ديناميكياً', 'success');
-        }
+    var rowId = side === 'from' ? 'transferFromEntityRow' : 'transferToEntityRow';
+    var selectId = side === 'from' ? 'transferFromEntity' : 'transferToEntity';
+    var labelId = side === 'from' ? 'transferFromEntityLabel' : 'transferToEntityLabel';
+
+    // ✅ مسح الصف القديم تماماً (مهما كان حالته)
+    var old = document.getElementById(rowId);
+    if (old) old.remove();
+
+    // إذا كان الاختيار "الشركة" لا نحتاج حقل إضافي
+    if (type !== 'client' && type !== 'investor') return;
+
+    var data = populateEntitySelect(type);
+    if (!data) return;
+
+    // ✅ بناء صف جديد بإستايل مضمون 100% (كل شيء inline)
+    var row = document.createElement('div');
+    row.id = rowId;
+    row.style.cssText = 'display:block !important;background:#eef0ff;padding:14px;border-radius:10px;border:2px solid #667eea;margin:12px 0;';
+    row.innerHTML =
+        '<label id="' + labelId + '" style="display:block;font-weight:bold;color:#4c5fd5;margin-bottom:8px;font-size:15px;">' + data.label + '</label>' +
+        '<select id="' + selectId + '" style="display:block;width:100%;padding:12px;font-size:16px;border:1px solid #cbd5e1;border-radius:8px;background:#ffffff;color:#1e293b;">' + data.options + '</select>';
+
+    // إدراجه مباشرة بعد حقل النوع
+    var group = typeEl.closest('.form-group');
+    if (group) {
+        group.insertAdjacentElement('afterend', row);
+    } else {
+        typeEl.insertAdjacentElement('afterend', row);
     }
 
-    // إنشاء صف "إلى" إذا لم يوجد
-    if (toTypeEl && !document.getElementById('transferToEntityRow')) {
-        var toGroup = toTypeEl.closest('.form-group');
-        if (toGroup) {
-            var toRow = document.createElement('div');
-            toRow.className = 'form-group';
-            toRow.id = 'transferToEntityRow';
-            toRow.style.display = 'none';
-            toRow.innerHTML = '<label id="transferToEntityLabel" style="display:block;font-weight:bold;color:#667eea;margin-bottom:6px;">اختر الطرف *</label>' +
-                '<select id="transferToEntity" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>';
-            toGroup.insertAdjacentElement('afterend', toRow);
-            debug('✅ تم إنشاء حقل اختيار الطرف المستلم ديناميكياً', 'success');
-        }
-    }
-}
-
-function _highlightRow(row) {
-    if (!row) return;
-    row.style.display = 'block';
-    row.style.background = '#eef0ff';
-    row.style.padding = '12px';
-    row.style.borderRadius = '8px';
-    row.style.border = '2px solid #667eea';
-    row.style.marginBottom = '12px';
+    debug('✅ تم بناء حقل اختيار الطرف (' + side + ') ديناميكياً', 'success');
 }
 
 // ============================================================
@@ -406,42 +397,11 @@ function updateTransferFields() {
     var fromType = fromTypeEl.value;
     var toType = toTypeEl.value;
 
-    // ✅ التأكد من وجود الحقول ديناميكياً
-    _ensureEntityRows();
+    // ✅ إعادة بناء حقول الأطراف من الصفر (حل جذري)
+    _rebuildEntityRow('from', fromType);
+    _rebuildEntityRow('to', toType);
 
-    var fromEntityRow = document.getElementById('transferFromEntityRow');
-    var toEntityRow = document.getElementById('transferToEntityRow');
-    var fromEntitySelect = document.getElementById('transferFromEntity');
-    var toEntitySelect = document.getElementById('transferToEntity');
-    var fromEntityLabel = document.getElementById('transferFromEntityLabel');
-    var toEntityLabel = document.getElementById('transferToEntityLabel');
-
-    // إخفاء أولاً
-    if (fromEntityRow) fromEntityRow.style.display = 'none';
-    if (toEntityRow) toEntityRow.style.display = 'none';
-    if (fromEntitySelect) fromEntitySelect.value = '';
-    if (toEntitySelect) toEntitySelect.value = '';
-
-    // ✅ إظهار حقل الطرف المصدر
-    if (fromType === 'client' || fromType === 'investor') {
-        var fromData = populateEntitySelect(fromType);
-        if (fromData && fromEntityRow && fromEntitySelect) {
-            if (fromEntityLabel) fromEntityLabel.textContent = fromData.label;
-            fromEntitySelect.innerHTML = fromData.options;
-            _highlightRow(fromEntityRow);
-        }
-    }
-
-    // ✅ إظهار حقل الطرف المستلم
-    if (toType === 'client' || toType === 'investor') {
-        var toData = populateEntitySelect(toType);
-        if (toData && toEntityRow && toEntitySelect) {
-            if (toEntityLabel) toEntityLabel.textContent = toData.label;
-            toEntitySelect.innerHTML = toData.options;
-            _highlightRow(toEntityRow);
-        }
-    }
-
+    // تحديث الغرض والملخص
     _updatePurposeField(fromType, toType);
     updateTransferSummary(fromType, toType);
 
@@ -491,7 +451,7 @@ function _updatePurposeField(fromType, toType) {
         purposeRow = document.createElement('div');
         purposeRow.className = 'form-group';
         purposeRow.id = 'transferPurposeRow';
-        purposeRow.innerHTML = '<label for="transferPurpose">الغرض *</label><select id="transferPurpose"></select>';
+        purposeRow.innerHTML = '<label for="transferPurpose" style="display:block;font-weight:500;margin-bottom:6px;">الغرض *</label><select id="transferPurpose" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>';
         amountGroup.parentNode.insertBefore(purposeRow, amountGroup);
     }
 
@@ -570,6 +530,7 @@ function populateTransferForm(transfer, title) {
     _setTransVal('transferFromType', fromType);
     _setTransVal('transferToType', toType);
 
+    // ✅ بناء الحقول ديناميكياً ثم تعبئتها
     updateTransferFields();
 
     if (transfer.client_id) {
@@ -593,19 +554,18 @@ function populateTransferForm(transfer, title) {
 }
 
 function resetTransferForm() {
-    ['transferId', 'transferFromType', 'transferToType', 'transferFromEntity',
-     'transferToEntity', 'transferAmount', 'transferOperation', 'transferNotes',
-     'transferTransactionCategory', 'transferPurpose'].forEach(function(id) {
+    ['transferId', 'transferFromType', 'transferToType', 'transferAmount',
+     'transferOperation', 'transferNotes', 'transferTransactionCategory', 'transferPurpose'].forEach(function(id) {
         _setTransVal(id, '');
     });
 
     _setTransVal('transferDate', getTodayDate());
 
-    var fromEntityRow = document.getElementById('transferFromEntityRow');
-    if (fromEntityRow) fromEntityRow.style.display = 'none';
-
-    var toEntityRow = document.getElementById('transferToEntityRow');
-    if (toEntityRow) toEntityRow.style.display = 'none';
+    // ✅ مسح الصفوف الديناميكية القديمة
+    var fromRow = document.getElementById('transferFromEntityRow');
+    if (fromRow) fromRow.remove();
+    var toRow = document.getElementById('transferToEntityRow');
+    if (toRow) toRow.remove();
 
     var purposeRow = document.getElementById('transferPurposeRow');
     if (purposeRow) purposeRow.style.display = 'none';
@@ -690,12 +650,12 @@ async function validateTransferForm(formData) {
     }
 
     if ((formData.fromType === 'client' || formData.fromType === 'investor') && !formData.clientId && !formData.investorId) {
-        showToast('❌ يجب اختيار الطرف المصدر (مَن الذي أرسل الأموال؟)', 'error');
+        showToast('❌ يجب اختيار الطرف المصدر (مَن أرسل الأموال؟)', 'error');
         return false;
     }
 
     if ((formData.toType === 'client' || formData.toType === 'investor') && !formData.clientId && !formData.investorId) {
-        showToast('❌ يجب اختيار الطرف المستلم (مَن الذي استلم الأموال؟)', 'error');
+        showToast('❌ يجب اختيار الطرف المستلم (مَن استلم الأموال؟)', 'error');
         return false;
     }
 
