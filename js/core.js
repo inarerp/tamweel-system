@@ -862,101 +862,109 @@ function arrayToObject(arr, keyField) {
     });
     return obj;
 }
-// ... (أدخل هذا التعديل داخل دالة window.logDebug أو إنشاء دالة جديدة)
-function initDebugWidget() {
+// ============================================================
+// DEBUG PANEL - New Design (Floating Button + Side Panel)
+// ============================================================
+
+function initDebugPanel() {
     if (!APP.DEBUG_MODE) return;
 
-    const container = document.getElementById('debugWidgetContainer');
-    if (container) return; // Already created
+    // إزالة الـ Debug القديم إذا كان موجوداً
+    var oldDebug = document.getElementById('debugWidgetContainer');
+    if (oldDebug) oldDebug.remove();
 
-    const body = document.body;
-    const widgetHTML = `
-        <div id="debugWidgetContainer">
-            <button id="debugToggleBtn">
-                <span>🐞 <span id="debugCounter">0</span> Log Messages</span>
-                <span id="debugArrow">▲</span>
-            </button>
-            <div id="debugContent">
-                <div id="debugLog"></div>
-                <div id="debugControls">
-                    <span style="font-size:11px; color:#666;">Console Level: INFO | WARN | ERROR</span>
-                    <div class="debug-controls">
-                        <button onclick="clearDebug()">Clear</button>
-                        <button onclick="copyDebug()">Copy</button>
-                        <button onclick="toggleDebug()">Hide</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    body.insertAdjacentHTML('beforeend', widgetHTML);
+    // إنشاء الزر العائم
+    var btn = document.createElement('button');
+    btn.id = 'debugFloatingBtn';
+    btn.innerHTML = '🐞';
+    btn.title = 'Debug Panel';
+    btn.onclick = toggleDebugPanel;
+    document.body.appendChild(btn);
 
-    document.getElementById('debugToggleBtn').addEventListener('click', toggleDebug);
+    // إنشاء الـ Panel الجانبي
+    var panel = document.createElement('div');
+    panel.id = 'debugPanel';
+    panel.innerHTML = 
+        '<div id="debugPanelHeader">' +
+            '<h3>🐞 Debug Panel (<span id="debugCounter">0</span>)</h3>' +
+            '<button id="debugCloseBtn" onclick="toggleDebugPanel()">✕</button>' +
+        '</div>' +
+        '<div id="debugPanelContent">' +
+            '<div id="debugLog"></div>' +
+            '<div id="debugPanelControls">' +
+                '<button onclick="clearDebug()">🗑️ Clear</button>' +
+                '<button onclick="copyDebug()">📋 Copy</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(panel);
+
+    debug('✅ Debug Panel initialized', 'success');
 }
 
-function toggleDebug() {
-    const content = document.getElementById('debugContent');
-    const arrow = document.getElementById('debugArrow');
-    const container = document.getElementById('debugWidgetContainer');
-    
-    if (content.style.display === 'flex') {
-        content.style.display = 'none';
-        arrow.textContent = '▲';
-        container.style.height = 'auto';
-    } else {
-        content.style.display = 'flex';
-        arrow.textContent = '▼';
-        const logDiv = document.getElementById('debugLog');
-        logDiv.scrollTop = logDiv.scrollHeight;
+function toggleDebugPanel() {
+    var panel = document.getElementById('debugPanel');
+    if (panel) {
+        panel.classList.toggle('open');
     }
 }
 
 function clearDebug() {
-    document.getElementById('debugLog').innerHTML = '';
-    document.getElementById('debugCounter').innerText = '0';
+    var log = document.getElementById('debugLog');
+    if (log) log.innerHTML = '';
+    var counter = document.getElementById('debugCounter');
+    if (counter) counter.innerText = '0';
 }
 
 function copyDebug() {
-    const text = document.getElementById('debugLog').innerText;
-    navigator.clipboard.writeText(text).then(() => showToast('تم نسخ السجل', 'success'));
+    var log = document.getElementById('debugLog');
+    if (log) {
+        navigator.clipboard.writeText(log.innerText).then(function() {
+            showToast('✅ تم نسخ السجل', 'success');
+        });
+    }
 }
 
 function updateDebugCount() {
-    const log = document.getElementById('debugLog');
+    var log = document.getElementById('debugLog');
     if (log) {
-        const lines = log.innerText.split('\n').filter(l => l.trim().length > 0);
-        document.getElementById('debugCounter').innerText = lines.length;
+        var lines = log.innerText.split('\n').filter(function(l) { return l.trim().length > 0; });
+        var counter = document.getElementById('debugCounter');
+        if (counter) counter.innerText = lines.length;
     }
 }
 
-// override console.log to capture it in our widget
-const originalLog = console.log;
-console.log = function(...args) {
-    originalLog.apply(console, args);
-    if (APP.DEBUG_MODE) {
-        appendDebugLog(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'log');
-    }
-};
-
 function appendDebugLog(msg, type) {
-    const log = document.getElementById('debugLog');
+    var log = document.getElementById('debugLog');
     if (!log) return;
     
-    const time = new Date().toLocaleTimeString();
-    let color = '#00ff00';
+    var time = new Date().toLocaleTimeString();
+    var color = '#00ff00';
     if (type === 'error') color = '#ff3333';
     if (type === 'warn') color = '#ffcc00';
+    if (type === 'success') color = '#00ccff';
 
-    log.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+    log.innerHTML += '<div style="color:' + color + '">[' + time + '] ' + msg + '</div>';
     updateDebugCount();
     log.scrollTop = log.scrollHeight;
 }
 
-function debug(msg, type='info') {
+function debug(msg, type) {
     if (!APP.DEBUG_MODE) return;
+    type = type || 'info';
     appendDebugLog(msg, type);
+    
+    // أيضاً في console
+    if (type === 'error') console.error(msg);
+    else if (type === 'warn') console.warn(msg);
+    else console.log(msg);
 }
 
+// استدعاء initDebugPanel عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof initDebugPanel === 'function') {
+        initDebugPanel();
+    }
+});
 // ============================================================
 // END OF CORE.JS
 // ============================================================
