@@ -1,27 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Transfers Module (Parties Ledger)
-// Version: 5.0.0 (Complete Rewrite - Aligned with System Philosophy)
+// Version: 5.1.0 (Fix: Dynamic Entity Rows)
 // Last Updated: 2026-08-04
-// ============================================================
-//
-// الفلسفة:
-// - التحويلات هي المصدر الوحيد للحركات المالية (Single Source of Truth)
-// - الحسابات تُستنتج من التحويلات ولا تُخزن
-// - المستخدم يختار "من" و"إلى"، والنظام يستنتج النوع
-// - كل تحويل يؤثر على: Dashboard, Client, Investor, Operation, Statements
-//
-// يعتمد على:
-// - core.js (APP, runQuery, debug, showToast, openModal, closeModal, ...)
-// - auth.js (canEdit)
-// - app.js (Event Delegation)
-//
-// يُعتمد عليه من:
-// - operations.js (openTransferModal مع prefill, PURPOSE_TEXT_AR)
-// - dashboard.js (حساب الأرصدة)
-// ============================================================
-
-// ============================================================
-// 1. STATE
 // ============================================================
 
 var TRANSFERS_STATE = {
@@ -33,7 +13,7 @@ var TRANSFERS_STATE = {
 };
 
 // ============================================================
-// 2. TRANSFER FLOW MAP (✅ تم إصلاح investor_to_company)
+// 1. TRANSFER FLOW MAP
 // ============================================================
 
 var TRANSFER_FLOW_MAP = Object.freeze({
@@ -58,7 +38,6 @@ var TRANSFER_FLOW_MAP = Object.freeze({
         purpose_options: ['capital_return', 'profit_distribution', 'settlement', 'other'],
         label: 'تحويل لممول'
     },
-    // ✅ إصلاح: transfer_type كان 'company_to_investor' (معكوس!)
     'investor_to_company': {
         party_type: 'investor',
         transaction_category: 'investor_capital_in',
@@ -84,7 +63,6 @@ var TRANSFER_FLOW_MAP = Object.freeze({
 
 var WORKFLOW_TRANSFER_PURPOSES = Object.freeze(['client_repayment', 'capital_return', 'profit_distribution']);
 
-// ✅ جعله متاحاً في window scope لاستخدامه من operations.js
 var PURPOSE_TEXT_AR = Object.freeze({
     client_funding: 'تمويل',
     client_repayment: 'سداد',
@@ -95,13 +73,12 @@ var PURPOSE_TEXT_AR = Object.freeze({
     other: 'أخرى'
 });
 
-// جعله متاحاً globally
 if (typeof window !== 'undefined') {
     window.PURPOSE_TEXT_AR = PURPOSE_TEXT_AR;
 }
 
 // ============================================================
-// 3. INITIALIZATION
+// 2. INITIALIZATION
 // ============================================================
 
 function initTransfers() {
@@ -113,7 +90,7 @@ function initTransfers() {
 }
 
 // ============================================================
-// 4. LOAD TRANSFERS
+// 3. LOAD TRANSFERS
 // ============================================================
 
 async function loadTransfers() {
@@ -144,14 +121,9 @@ async function loadTransfers() {
         ]);
 
         var transfers = results[0].data || [];
-        var clients = results[1] || [];
-        var investors = results[2] || [];
-        var operations = results[3] || [];
-
-        var indexes = buildTransfersIndexes(clients, investors, operations);
+        var indexes = buildTransfersIndexes(results[1] || [], results[2] || [], results[3] || []);
 
         transfers.forEach(function(t) {
-            // ربط العميل
             if (t.client_id && indexes.clientsById[t.client_id]) {
                 t.client = indexes.clientsById[t.client_id];
             } else if (t.operation_id && indexes.operationsById[t.operation_id]) {
@@ -160,11 +132,7 @@ async function loadTransfers() {
             } else {
                 t.client = null;
             }
-
-            // ربط الممول
             t.investor = t.investor_id ? indexes.investorsById[t.investor_id] : null;
-
-            // ربط العملية
             t.operation = t.operation_id ? indexes.operationsById[t.operation_id] : null;
         });
 
@@ -184,7 +152,7 @@ async function loadTransfers() {
 }
 
 // ============================================================
-// 5. REFERENCE DATA
+// 4. REFERENCE DATA
 // ============================================================
 
 async function loadClientsForTransfers() {
@@ -195,7 +163,7 @@ async function loadClientsForTransfers() {
         }, { context: 'loadClientsForTransfers', throwError: true });
         TRANSFERS_STATE.referenceCache.clients = result.data || [];
         return TRANSFERS_STATE.referenceCache.clients;
-    } catch (e) { return []; }
+    } catch (err) { return []; }
 }
 
 async function loadInvestorsForTransfers() {
@@ -206,7 +174,7 @@ async function loadInvestorsForTransfers() {
         }, { context: 'loadInvestorsForTransfers', throwError: true });
         TRANSFERS_STATE.referenceCache.investors = result.data || [];
         return TRANSFERS_STATE.referenceCache.investors;
-    } catch (e) { return []; }
+    } catch (err) { return []; }
 }
 
 async function loadOperationsForTransfers() {
@@ -219,7 +187,7 @@ async function loadOperationsForTransfers() {
         }, { context: 'loadOperationsForTransfers', throwError: true });
         TRANSFERS_STATE.referenceCache.operations = result.data || [];
         return TRANSFERS_STATE.referenceCache.operations;
-    } catch (e) { return []; }
+    } catch (err) { return []; }
 }
 
 function buildTransfersIndexes(clients, investors, operations) {
@@ -231,7 +199,7 @@ function buildTransfersIndexes(clients, investors, operations) {
 }
 
 // ============================================================
-// 6. RENDER LIST (✅ إصلاح: عرض investor_to_company)
+// 5. RENDER LIST
 // ============================================================
 
 function renderTransfersList() {
@@ -249,18 +217,14 @@ function renderTransfersList() {
     html += '</tr></thead><tbody>';
 
     TRANSFERS_STATE.records.forEach(function(t) {
-        var fromText = _getFromText(t);
-        var toText = _getToText(t);
-        var opText = t.operation ? escapeHtml(t.operation.name) : '-';
-
         html += '<tr>';
         html += '<td><strong>' + escapeHtml(t.reference_number || '-') + '</strong></td>';
         html += '<td>' + formatDate(t.transfer_date) + '</td>';
-        html += '<td>' + fromText + '</td>';
-        html += '<td>' + toText + '</td>';
+        html += '<td>' + _getFromText(t) + '</td>';
+        html += '<td>' + _getToText(t) + '</td>';
         html += '<td>' + (PURPOSE_TEXT_AR[t.purpose] || t.purpose || '-') + '</td>';
         html += '<td class="amount-cell">' + formatMoney(t.amount) + '</td>';
-        html += '<td>' + opText + '</td>';
+        html += '<td>' + (t.operation ? escapeHtml(t.operation.name) : '-') + '</td>';
         html += '<td>' + escapeHtml(truncateText(t.notes, 30)) + '</td>';
 
         if (canEdit()) {
@@ -277,21 +241,17 @@ function renderTransfersList() {
     container.innerHTML = html;
 }
 
-// ✅ دوال مساعدة لعرض "من" و"إلى" لجميع الأنواع
 function _getFromText(t) {
     switch (t.type) {
         case 'company_to_client':
         case 'company_to_investor':
             return '🏢 الشركة';
-
         case 'client_to_company':
         case 'client_to_investor':
             return t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : 'عميل';
-
         case 'investor_to_company':
         case 'investor_to_client':
             return t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : 'ممول';
-
         default:
             return '-';
     }
@@ -302,29 +262,23 @@ function _getToText(t) {
         case 'client_to_company':
         case 'investor_to_company':
             return '🏢 الشركة';
-
         case 'company_to_client':
         case 'investor_to_client':
             return t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : 'عميل';
-
         case 'company_to_investor':
         case 'client_to_investor':
             return t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : 'ممول';
-
         default:
             return '-';
     }
 }
 
 // ============================================================
-// 7. OPEN MODAL (✅ إضافة دعم prefill)
+// 6. OPEN MODAL (مع دعم prefill)
 // ============================================================
 
 async function openTransferModal(transferId, prefill) {
-    if (!canEdit()) {
-        showToast('❌ لا توجد صلاحية', 'error');
-        return;
-    }
+    if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
 
     var titleEl = document.getElementById('transferModalTitle');
     if (!titleEl) return;
@@ -335,7 +289,6 @@ async function openTransferModal(transferId, prefill) {
         loadOperationsForTransfers()
     ]);
 
-    // ملء قوائم from/to
     var fromTypeEl = document.getElementById('transferFromType');
     var toTypeEl = document.getElementById('transferToType');
     var opEl = document.getElementById('transferOperation');
@@ -354,26 +307,24 @@ async function openTransferModal(transferId, prefill) {
             '<option value="investor">💼 ممول</option>';
     }
 
-    // ملء قائمة العمليات
     if (opEl && TRANSFERS_STATE.referenceCache.operations) {
         var options = '<option value="">-- بدون عملية --</option>';
         TRANSFERS_STATE.referenceCache.operations.forEach(function(op) {
-            if (!op.is_archived) {
-                options += '<option value="' + op.id + '">' + escapeHtml(op.name) + '</option>';
-            }
+            if (!op.is_archived) options += '<option value="' + op.id + '">' + escapeHtml(op.name) + '</option>';
         });
         opEl.innerHTML = options;
     }
 
+    // ✅ إنشاء حقول الأطراف ديناميكياً إذا لم تكن موجودة
+    _ensureEntityRows();
+
     resetTransferForm();
 
     if (transferId) {
-        // وضع التعديل
         try {
             var result = await runQuery(function() {
                 return APP.supabase.from('transfers').select('*').eq('id', transferId).single();
             }, { context: 'openTransferModal', throwError: true });
-
             if (result.data) populateTransferForm(result.data, 'تعديل تحويل');
         } catch (err) {
             showToast(handleSupabaseError(err, 'فتح بيانات التحويل'), 'error');
@@ -381,12 +332,7 @@ async function openTransferModal(transferId, prefill) {
         }
     } else {
         titleEl.textContent = 'إضافة تحويل';
-
-        // ✅ تعبئة مسبقة (Prefill) من operations.js
-        if (prefill) {
-            debug('📝 تعبئة مسبقة للتحويل: ' + JSON.stringify(prefill), 'info');
-            _applyPrefill(prefill);
-        }
+        if (prefill) _applyPrefill(prefill);
     }
 
     var warningEl = document.getElementById('transferValidationWarning');
@@ -395,37 +341,57 @@ async function openTransferModal(transferId, prefill) {
     openModal('transferModal');
 }
 
-// ✅ دالة جديدة: تطبيق التعبئة المسبقة
-function _applyPrefill(prefill) {
+function editTransfer(transferId) {
+    openTransferModal(transferId);
+}
+
+// ============================================================
+// 7. ✅ DYNAMIC ENTITY ROWS (الحل الجذري)
+// ============================================================
+
+function _ensureEntityRows() {
     var fromTypeEl = document.getElementById('transferFromType');
     var toTypeEl = document.getElementById('transferToType');
 
-    if (prefill.fromType && fromTypeEl) fromTypeEl.value = prefill.fromType;
-    if (prefill.toType && toTypeEl) toTypeEl.value = prefill.toType;
+    // إنشاء صف "من" إذا لم يوجد
+    if (fromTypeEl && !document.getElementById('transferFromEntityRow')) {
+        var fromGroup = fromTypeEl.closest('.form-group');
+        if (fromGroup) {
+            var fromRow = document.createElement('div');
+            fromRow.className = 'form-group';
+            fromRow.id = 'transferFromEntityRow';
+            fromRow.style.display = 'none';
+            fromRow.innerHTML = '<label id="transferFromEntityLabel" style="display:block;font-weight:bold;color:#667eea;margin-bottom:6px;">اختر الطرف *</label>' +
+                '<select id="transferFromEntity" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>';
+            fromGroup.insertAdjacentElement('afterend', fromRow);
+            debug('✅ تم إنشاء حقل اختيار الطرف المصدر ديناميكياً', 'success');
+        }
+    }
 
-    // تحديث الحقول الديناميكية
-    if (typeof updateTransferFields === 'function') updateTransferFields();
-
-    // الانتظار حتى تظهر الحقول الديناميكية ثم تعبئتها
-    setTimeout(function() {
-        if (prefill.fromEntity) _setTransVal('transferFromEntity', prefill.fromEntity);
-        if (prefill.toEntity) _setTransVal('transferToEntity', prefill.toEntity);
-        if (prefill.amount) _setTransVal('transferAmount', prefill.amount);
-        if (prefill.operationId) _setTransVal('transferOperation', prefill.operationId);
-        if (prefill.date) _setTransVal('transferDate', prefill.date);
-        if (prefill.purpose) _setTransVal('transferPurpose', prefill.purpose);
-
-        // تحديث الملخص
-        var fromType = _getTransVal('transferFromType');
-        var toType = _getTransVal('transferToType');
-        if (fromType && toType) updateTransferSummary(fromType, toType);
-
-        debug('✅ تم تطبيق التعبئة المسبقة', 'success');
-    }, 150);
+    // إنشاء صف "إلى" إذا لم يوجد
+    if (toTypeEl && !document.getElementById('transferToEntityRow')) {
+        var toGroup = toTypeEl.closest('.form-group');
+        if (toGroup) {
+            var toRow = document.createElement('div');
+            toRow.className = 'form-group';
+            toRow.id = 'transferToEntityRow';
+            toRow.style.display = 'none';
+            toRow.innerHTML = '<label id="transferToEntityLabel" style="display:block;font-weight:bold;color:#667eea;margin-bottom:6px;">اختر الطرف *</label>' +
+                '<select id="transferToEntity" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>';
+            toGroup.insertAdjacentElement('afterend', toRow);
+            debug('✅ تم إنشاء حقل اختيار الطرف المستلم ديناميكياً', 'success');
+        }
+    }
 }
 
-function editTransfer(transferId) {
-    openTransferModal(transferId);
+function _highlightRow(row) {
+    if (!row) return;
+    row.style.display = 'block';
+    row.style.background = '#eef0ff';
+    row.style.padding = '12px';
+    row.style.borderRadius = '8px';
+    row.style.border = '2px solid #667eea';
+    row.style.marginBottom = '12px';
 }
 
 // ============================================================
@@ -440,6 +406,9 @@ function updateTransferFields() {
     var fromType = fromTypeEl.value;
     var toType = toTypeEl.value;
 
+    // ✅ التأكد من وجود الحقول ديناميكياً
+    _ensureEntityRows();
+
     var fromEntityRow = document.getElementById('transferFromEntityRow');
     var toEntityRow = document.getElementById('transferToEntityRow');
     var fromEntitySelect = document.getElementById('transferFromEntity');
@@ -447,38 +416,35 @@ function updateTransferFields() {
     var fromEntityLabel = document.getElementById('transferFromEntityLabel');
     var toEntityLabel = document.getElementById('transferToEntityLabel');
 
-    // إخفاء الحقول الديناميكية أولاً
+    // إخفاء أولاً
     if (fromEntityRow) fromEntityRow.style.display = 'none';
     if (toEntityRow) toEntityRow.style.display = 'none';
     if (fromEntitySelect) fromEntitySelect.value = '';
     if (toEntitySelect) toEntitySelect.value = '';
 
-    // إظهار حقل اختيار العميل/الممول إذا لزم الأمر
-    if ((fromType === 'client' || fromType === 'investor') && fromEntityRow && fromEntitySelect) {
+    // ✅ إظهار حقل الطرف المصدر
+    if (fromType === 'client' || fromType === 'investor') {
         var fromData = populateEntitySelect(fromType);
-        if (fromData) {
+        if (fromData && fromEntityRow && fromEntitySelect) {
             if (fromEntityLabel) fromEntityLabel.textContent = fromData.label;
             fromEntitySelect.innerHTML = fromData.options;
-            fromEntityRow.style.display = 'block';
+            _highlightRow(fromEntityRow);
         }
     }
 
-    if ((toType === 'client' || toType === 'investor') && toEntityRow && toEntitySelect) {
+    // ✅ إظهار حقل الطرف المستلم
+    if (toType === 'client' || toType === 'investor') {
         var toData = populateEntitySelect(toType);
-        if (toData) {
+        if (toData && toEntityRow && toEntitySelect) {
             if (toEntityLabel) toEntityLabel.textContent = toData.label;
             toEntitySelect.innerHTML = toData.options;
-            toEntityRow.style.display = 'block';
+            _highlightRow(toEntityRow);
         }
     }
 
-    // ✅ إظهار/إخفاء حقل الغرض حسب نوع التحويل
     _updatePurposeField(fromType, toType);
-
-    // تحديث الملخص
     updateTransferSummary(fromType, toType);
 
-    // تحديث الحقول المخفية
     var fromPartyEl = document.getElementById('transferFromParty');
     var toPartyEl = document.getElementById('transferToParty');
     if (fromPartyEl) fromPartyEl.value = fromType;
@@ -491,10 +457,10 @@ function populateEntitySelect(type) {
 
     if (type === 'client') {
         entities = TRANSFERS_STATE.referenceCache.clients || [];
-        label = 'اختر العميل *';
+        label = '👤 اختر العميل *';
     } else if (type === 'investor') {
         entities = TRANSFERS_STATE.referenceCache.investors || [];
-        label = 'اختر الممول *';
+        label = '💼 اختر الممول *';
     } else {
         return null;
     }
@@ -509,24 +475,24 @@ function populateEntitySelect(type) {
     return { options: options, label: label };
 }
 
-// ✅ دالة جديدة: تحديث حقل الغرض ديناميكياً
+// ============================================================
+// 9. PURPOSE FIELD (ديناميكي)
+// ============================================================
+
 function _updatePurposeField(fromType, toType) {
     var purposeRow = document.getElementById('transferPurposeRow');
 
-    // إذا لم يكن موجوداً، أنشئه ديناميكياً
     if (!purposeRow) {
-        var amountGroup = document.querySelector('#transferModal .form-group label[for="transferAmount"]');
+        var amountLabel = document.querySelector('#transferModal label[for="transferAmount"]');
+        if (!amountLabel) return;
+        var amountGroup = amountLabel.closest('.form-group');
         if (!amountGroup) return;
-
-        var formGroup = amountGroup.closest('.form-group');
-        if (!formGroup) return;
 
         purposeRow = document.createElement('div');
         purposeRow.className = 'form-group';
         purposeRow.id = 'transferPurposeRow';
-        purposeRow.innerHTML = '<label for="transferPurpose">الغرض *</label><select id="transferPurpose" class="form-control"></select>';
-
-        formGroup.parentNode.insertBefore(purposeRow, formGroup);
+        purposeRow.innerHTML = '<label for="transferPurpose">الغرض *</label><select id="transferPurpose"></select>';
+        amountGroup.parentNode.insertBefore(purposeRow, amountGroup);
     }
 
     var purposeSelect = document.getElementById('transferPurpose');
@@ -537,25 +503,19 @@ function _updatePurposeField(fromType, toType) {
         return;
     }
 
-    var flowKey = fromType + '_to_' + toType;
-    var flow = TRANSFER_FLOW_MAP[flowKey];
-
-    if (!flow || flow.purpose_options.length <= 1) {
+    var flow = TRANSFER_FLOW_MAP[fromType + '_to_' + toType];
+    if (!flow) {
         purposeRow.style.display = 'none';
         return;
     }
 
-    // ملء خيارات الغرض
     var options = '';
     flow.purpose_options.forEach(function(purpose) {
-        var label = PURPOSE_TEXT_AR[purpose] || purpose;
-        options += '<option value="' + purpose + '">' + label + '</option>';
+        options += '<option value="' + purpose + '">' + (PURPOSE_TEXT_AR[purpose] || purpose) + '</option>';
     });
 
     purposeSelect.innerHTML = options;
     purposeRow.style.display = 'block';
-
-    debug('📋 تحديث حقل الغرض: ' + flow.purpose_options.join(', '), 'info');
 }
 
 function updateTransferSummary(fromType, toType) {
@@ -569,9 +529,7 @@ function updateTransferSummary(fromType, toType) {
         return;
     }
 
-    var flowKey = fromType + '_to_' + toType;
-    var flow = TRANSFER_FLOW_MAP[flowKey];
-
+    var flow = TRANSFER_FLOW_MAP[fromType + '_to_' + toType];
     if (!flow) {
         summaryEl.style.display = 'none';
         return;
@@ -591,14 +549,13 @@ function updateTransferSummary(fromType, toType) {
 }
 
 // ============================================================
-// 9. POPULATE FORM (EDIT MODE)
+// 10. POPULATE FORM (EDIT)
 // ============================================================
 
 function populateTransferForm(transfer, title) {
     var titleEl = document.getElementById('transferModalTitle');
     if (titleEl) titleEl.textContent = title;
 
-    // تحديد from/to من نوع التحويل
     var fromType = 'company', toType = 'company';
 
     switch (transfer.type) {
@@ -615,7 +572,6 @@ function populateTransferForm(transfer, title) {
 
     updateTransferFields();
 
-    // تعبئة الكيانات
     if (transfer.client_id) {
         if (fromType === 'client') _setTransVal('transferFromEntity', transfer.client_id);
         else if (toType === 'client') _setTransVal('transferToEntity', transfer.client_id);
@@ -631,18 +587,15 @@ function populateTransferForm(transfer, title) {
     _setTransVal('transferDate', formatDateForInput(transfer.transfer_date));
     _setTransVal('transferNotes', transfer.notes);
 
-    // ✅ تعبئة الغرض
     setTimeout(function() {
         if (transfer.purpose) _setTransVal('transferPurpose', transfer.purpose);
     }, 100);
 }
 
 function resetTransferForm() {
-    var ids = ['transferId', 'transferFromType', 'transferToType', 'transferFromEntity',
-               'transferToEntity', 'transferAmount', 'transferOperation', 'transferNotes',
-               'transferTransactionCategory', 'transferPurpose'];
-
-    ids.forEach(function(id) {
+    ['transferId', 'transferFromType', 'transferToType', 'transferFromEntity',
+     'transferToEntity', 'transferAmount', 'transferOperation', 'transferNotes',
+     'transferTransactionCategory', 'transferPurpose'].forEach(function(id) {
         _setTransVal(id, '');
     });
 
@@ -662,7 +615,33 @@ function resetTransferForm() {
 }
 
 // ============================================================
-// 10. COLLECT FORM DATA (✅ إضافة purpose)
+// 11. PREFILL
+// ============================================================
+
+function _applyPrefill(prefill) {
+    debug('📝 تعبئة مسبقة: ' + JSON.stringify(prefill), 'info');
+
+    if (prefill.fromType) _setTransVal('transferFromType', prefill.fromType);
+    if (prefill.toType) _setTransVal('transferToType', prefill.toType);
+
+    updateTransferFields();
+
+    setTimeout(function() {
+        if (prefill.fromEntity) _setTransVal('transferFromEntity', prefill.fromEntity);
+        if (prefill.toEntity) _setTransVal('transferToEntity', prefill.toEntity);
+        if (prefill.amount) _setTransVal('transferAmount', prefill.amount);
+        if (prefill.operationId) _setTransVal('transferOperation', prefill.operationId);
+        if (prefill.date) _setTransVal('transferDate', prefill.date);
+        if (prefill.purpose) _setTransVal('transferPurpose', prefill.purpose);
+
+        var fromType = _getTransVal('transferFromType');
+        var toType = _getTransVal('transferToType');
+        if (fromType && toType) updateTransferSummary(fromType, toType);
+    }, 150);
+}
+
+// ============================================================
+// 12. COLLECT & VALIDATE
 // ============================================================
 
 function collectTransferFormData() {
@@ -689,13 +668,9 @@ function collectTransferFormData() {
         transferDate: _getTransVal('transferDate'),
         notes: _getTransVal('transferNotes').trim(),
         transactionCategory: _getTransVal('transferTransactionCategory'),
-        purpose: _getTransVal('transferPurpose')  // ✅ جديد
+        purpose: _getTransVal('transferPurpose')
     };
 }
-
-// ============================================================
-// 11. VALIDATION (✅ تحسين)
-// ============================================================
 
 async function validateTransferForm(formData) {
     if (isEmpty(formData.fromType) || isEmpty(formData.toType)) {
@@ -714,14 +689,13 @@ async function validateTransferForm(formData) {
         return false;
     }
 
-    // التحقق من اختيار الكيان
     if ((formData.fromType === 'client' || formData.fromType === 'investor') && !formData.clientId && !formData.investorId) {
-        showToast('❌ يجب اختيار الطرف المصدر', 'error');
+        showToast('❌ يجب اختيار الطرف المصدر (مَن الذي أرسل الأموال؟)', 'error');
         return false;
     }
 
     if ((formData.toType === 'client' || formData.toType === 'investor') && !formData.clientId && !formData.investorId) {
-        showToast('❌ يجب اختيار الطرف المستلم', 'error');
+        showToast('❌ يجب اختيار الطرف المستلم (مَن الذي استلم الأموال؟)', 'error');
         return false;
     }
 
@@ -735,52 +709,20 @@ async function validateTransferForm(formData) {
         return false;
     }
 
-    // ✅ التحقق من الغرض إذا كان مطلوباً
-    if (flow.purpose_options.length > 1 && isEmpty(formData.purpose)) {
-        showToast('❌ يرجى اختيار الغرض', 'error');
-        return false;
-    }
-
-    // ✅ التحقق من العملية المرتبطة
-    if (formData.operationId) {
-        try {
-            var opCheck = await runQuery(function() {
-                return APP.supabase.from('operations')
-                    .select('id, is_locked, status')
-                    .eq('id', formData.operationId)
-                    .single();
-            }, { context: 'validateTransferForm-opCheck', throwError: false });
-
-            if (opCheck.data) {
-                if (opCheck.data.is_locked) {
-                    showToast('⚠️ العملية المرتبطة مقفلة. سيتم إنشاء التحويل لكن لن يؤثر على العملية.', 'warning');
-                }
-            }
-        } catch (e) {
-            debug('⚠️ تعذر التحقق من العملية المرتبطة', 'warn');
-        }
-    }
-
     return true;
 }
 
 // ============================================================
-// 12. SAVE TRANSFER (✅ استخدام purpose المختار + refresh الشاشات)
+// 13. SAVE TRANSFER
 // ============================================================
 
 async function saveTransfer() {
-    if (!canEdit()) {
-        showToast('❌ لا توجد صلاحية', 'error');
-        return;
-    }
+    if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
 
     var formData = collectTransferFormData();
-
     if (!(await validateTransferForm(formData))) return;
 
     var flow = TRANSFER_FLOW_MAP[formData.fromType + '_to_' + formData.toType];
-
-    // ✅ استخدام الغرض المختار بدلاً من أول خيار
     var selectedPurpose = formData.purpose || flow.purpose_options[0];
 
     var data = {
@@ -800,7 +742,6 @@ async function saveTransfer() {
 
     try {
         if (formData.id) {
-            // تحديث
             var oldResult = await runQuery(function() {
                 return APP.supabase.from('transfers').select('*').eq('id', formData.id).single();
             }, { context: 'saveTransfer-getOld', throwError: true });
@@ -817,7 +758,6 @@ async function saveTransfer() {
 
             showToast('✅ تم تحديث التحويل', 'success');
         } else {
-            // إضافة
             var result = await runQuery(function() {
                 return APP.supabase.from('transfers').insert(data).select();
             }, { context: 'saveTransfer-insert', throwError: true });
@@ -828,7 +768,6 @@ async function saveTransfer() {
                         null, JSON.stringify(data),
                         'From: ' + formData.fromType + ' → To: ' + formData.toType, 'create');
                 }
-
                 showToast('✅ تم إضافة التحويل', 'success');
             }
         }
@@ -836,8 +775,6 @@ async function saveTransfer() {
         closeModal('transferModal');
         clearTransfersListCache();
         loadTransfers();
-
-        // ✅ تحديث الشاشات المرتبطة
         refreshRelatedScreens(data.operation_id);
 
     } catch (err) {
@@ -849,30 +786,18 @@ async function saveTransfer() {
 }
 
 // ============================================================
-// 13. DELETE TRANSFER (✅ تحسين التحذيرات)
+// 14. DELETE TRANSFER
 // ============================================================
 
 async function deleteTransfer(transferId) {
-    if (!canEdit()) {
-        showToast('❌ لا توجد صلاحية', 'error');
-        return;
-    }
+    if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
 
     var transfer = TRANSFERS_STATE.records.find(function(t) { return t.id === transferId; });
-    if (!transfer) {
-        showToast('❌ التحويل غير موجود', 'error');
-        return;
-    }
+    if (!transfer) { showToast('❌ التحويل غير موجود', 'error'); return; }
 
-    // ✅ تحذير محسّن حسب نوع التحويل
-    var warningMsg = '';
-
+    var warningMsg;
     if (WORKFLOW_TRANSFER_PURPOSES.indexOf(transfer.purpose) !== -1) {
-        warningMsg = '⚠️ تحذير: هذا التحويل مرتبط بسير العمل وحذفه قد يؤثر على:\n';
-        warningMsg += '• أرصدة العملاء/الممولين\n';
-        warningMsg += '• حالة تمويل العملية\n';
-        warningMsg += '• التقارير والـ Dashboard\n\n';
-        warningMsg += 'هل أنت متأكد من الحذف؟';
+        warningMsg = '⚠️ تحذير: هذا التحويل مرتبط بسير العمل وحذفه سيؤثر على الأرصدة وحالة التمويل.\n\nهل أنت متأكد؟';
     } else if (transfer.operation_id) {
         warningMsg = '⚠️ هذا التحويل مرتبط بعملية. حذفه سيؤثر على حالة التمويل.\n\nهل أنت متأكد؟';
     } else {
@@ -901,8 +826,6 @@ async function deleteTransfer(transferId) {
         showToast('✅ تم حذف التحويل', 'success');
         clearTransfersListCache();
         loadTransfers();
-
-        // ✅ تحديث الشاشات المرتبطة
         refreshRelatedScreens(transfer.operation_id);
 
     } catch (err) {
@@ -913,25 +836,20 @@ async function deleteTransfer(transferId) {
 }
 
 // ============================================================
-// 14. REFRESH RELATED SCREENS (✅ جديد)
+// 15. REFRESH RELATED SCREENS
 // ============================================================
 
 function refreshRelatedScreens(operationId) {
     debug('🔄 تحديث الشاشات المرتبطة...', 'info');
 
-    // تحديث Operations (حالة التمويل)
     if (operationId && typeof loadOpInvestorsTab === 'function') {
         loadOpInvestorsTab(operationId);
-        debug('✅ تم تحديث تبويب ممولي العملية', 'success');
     }
 
-    // تحديث Dashboard
     if (typeof loadDashboard === 'function' && APP.currentScreen === 'dashboard') {
         loadDashboard();
-        debug('✅ تم تحديث Dashboard', 'success');
     }
 
-    // تحديث Clients/Investors إذا كانت الشاشات مفتوحة
     if (typeof loadClients === 'function' && APP.currentScreen === 'clients') {
         loadClients();
     }
@@ -942,7 +860,7 @@ function refreshRelatedScreens(operationId) {
 }
 
 // ============================================================
-// 15. SEARCH & FILTER
+// 16. SEARCH & FILTER & CACHE
 // ============================================================
 
 function searchTransfers(searchTerm) {
@@ -954,10 +872,6 @@ function filterTransfers(filterValue) {
     TRANSFERS_STATE.filter = filterValue || '';
     loadTransfers();
 }
-
-// ============================================================
-// 16. CACHE MANAGEMENT
-// ============================================================
 
 function clearTransfersReferenceCache() {
     TRANSFERS_STATE.referenceCache.clients = null;
@@ -971,7 +885,7 @@ function clearTransfersListCache() {
 }
 
 // ============================================================
-// 17. HELPER FUNCTIONS
+// 17. HELPERS
 // ============================================================
 
 function _getTransVal(id) {
