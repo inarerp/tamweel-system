@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - Operations Module
-// Version: 4.0.0 (Fixed)
+// Version: 4.1.0 (Fixed: saveOpInvestor + investor_display_amount)
 // Last Updated: 2026-08-03
 // ============================================================
 
@@ -13,7 +13,7 @@ var OPERATIONS_STATE = {
 };
 
 function initOperations() {
-    debug('️ بدء تهيئة operations.js', 'info');
+    debug('⚙️ بدء تهيئة operations.js', 'info');
     registerScreenLoader('operations', loadOperations);
     debug('✅ operations.js جاهز', 'success');
 }
@@ -43,7 +43,6 @@ async function loadOperations() {
         
         var ops = results[0].data || [];
         var clients = results[1] || [];
-        var investors = results[2] || [];
         
         var clientsById = {};
         clients.forEach(function(c) { clientsById[c.id] = c; });
@@ -108,8 +107,8 @@ function renderOperationsList() {
         html += '<td class="actions-cell">';
         if (canEdit()) {
             html += '<button class="btn btn-secondary btn-sm" data-action="editOperation" data-param="' + op.id + '">تعديل</button>';
-            if (!op.is_locked) {
-                html += '<button class="btn btn-danger btn-sm" data-action="archiveOperation" data-param="' + op.id + '">أرشفة</button>';
+            if (!op.is_locked && op.status !== 'completed') {
+                html += '<button class="btn btn-warning btn-sm" data-action="archiveOperation" data-param="' + op.id + '">أرشفة</button>';
             }
         }
         html += '</td></tr>';
@@ -119,7 +118,6 @@ function renderOperationsList() {
     container.innerHTML = html;
 }
 
-// ✅ إصلاح: جلب البيانات عند التعديل
 async function openOperationModal(operationId) {
     if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
     
@@ -129,7 +127,6 @@ async function openOperationModal(operationId) {
     
     await loadClientsForOps();
     
-    // تعبئة قائمة العملاء
     var clientSelect = document.getElementById('opClient');
     if (clientSelect) {
         var options = '<option value="">-- اختر العميل --</option>';
@@ -139,7 +136,6 @@ async function openOperationModal(operationId) {
         clientSelect.innerHTML = options;
     }
     
-    // تفريغ الحقول
     ['opName', 'opAmount', 'opInvestorDisplayAmount', 'opExpectedProfit', 'opFinalProfit', 
      'opProfitApprovalDate', 'opGoogleDriveUrl', 'opCompanyProfitValue', 'opStartDate', 
      'opDurationDays', 'opEndDate', 'opNotes'].forEach(function(id) {
@@ -151,7 +147,6 @@ async function openOperationModal(operationId) {
     if (document.getElementById('opStatus')) document.getElementById('opStatus').value = 'draft';
     
     if (operationId) {
-        // وضع التعديل
         try {
             var result = await runQuery(function() { 
                 return APP.supabase.from('operations').select('*').eq('id', operationId).single(); 
@@ -193,12 +188,10 @@ async function openOperationModal(operationId) {
     openModal('operationModal');
 }
 
-// ✅ ربط زر التعديل من القائمة
 function editOperation(operationId) {
     openOperationModal(operationId);
 }
 
-// ✅ حفظ العملية مع investor_display_amount
 async function saveOperation(form, event) {
     if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
     
@@ -208,7 +201,7 @@ async function saveOperation(form, event) {
         type: document.getElementById('opType').value,
         client_id: document.getElementById('opClient').value || null,
         amount: parseFloat(document.getElementById('opAmount').value) || 0,
-        investor_display_amount: parseFloat(document.getElementById('opInvestorDisplayAmount').value) || null,
+        investor_display_amount: document.getElementById('opInvestorDisplayAmount').value ? parseFloat(document.getElementById('opInvestorDisplayAmount').value) : null,
         expected_profit: parseFloat(document.getElementById('opExpectedProfit').value) || 0,
         final_profit: parseFloat(document.getElementById('opFinalProfit').value) || 0,
         profit_approval_date: document.getElementById('opProfitApprovalDate').value || null,
@@ -263,7 +256,6 @@ async function saveOperation(form, event) {
     }
 }
 
-// ✅ إصلاح: فتح تفاصيل العملية وجلب البيانات
 async function openOperationDetails(operationId) {
     if (!operationId) return;
     OPERATIONS_STATE.currentOperationId = operationId;
@@ -277,34 +269,40 @@ async function openOperationDetails(operationId) {
         var op = opResult.data;
         if (!op) { showToast('❌ العملية غير موجودة', 'error'); return; }
         
-        // ملء الملخص
+        // جلب اسم العميل
+        var clientName = '-';
+        if (op.client_id) {
+            var clientResult = await runQuery(function() {
+                return APP.supabase.from('clients').select('name').eq('id', op.client_id).single();
+            }, { context: 'openOperationDetails-client', throwError: false });
+            if (clientResult.data) clientName = clientResult.data.name;
+        }
+        
         var summaryGrid = document.getElementById('opSummaryGrid');
         if (summaryGrid) {
             summaryGrid.innerHTML = 
                 '<div class="summary-item"><label>الاسم</label><div class="val">' + escapeHtml(op.name) + '</div></div>' +
-                '<div class="summary-item"><label>العميل</label><div class="val">' + (op.client_id ? '...' : '-') + '</div></div>' +
+                '<div class="summary-item"><label>العميل</label><div class="val">' + escapeHtml(clientName) + '</div></div>' +
                 '<div class="summary-item"><label>المبلغ</label><div class="val blue">' + formatMoney(op.amount) + '</div></div>' +
-                '<div class="summary-item"><label>الربح النهائي</label><div class="val green">' + formatMoney(op.final_profit) + '</div></div>' +
+                (op.investor_display_amount ? '<div class="summary-item"><label>الظاهر للممول</label><div class="val">' + formatMoney(op.investor_display_amount) + '</div></div>' : '') +
+                '<div class="summary-item"><label>الربح النهائي</label><div class="val green profit-field">' + formatMoney(op.final_profit) + '</div></div>' +
                 '<div class="summary-item"><label>الحالة</label><div class="val">' + getStatusText(op.status) + '</div></div>' +
                 '<div class="summary-item"><label>تاريخ النهاية</label><div class="val">' + formatDate(op.end_date) + '</div></div>';
         }
         
-        // إظهار/إخفاء أزرار Workflow حسب الحالة
         var workflowActions = document.getElementById('workflowActions');
         if (workflowActions) {
             var isLocked = op.is_locked || op.status === 'completed' || op.status === 'cancelled';
             workflowActions.style.display = canEdit() && !isLocked ? 'flex' : 'none';
             
             var unlockBtn = document.getElementById('unlockBtn');
-            if (unlockBtn) unlockBtn.style.display = isLocked && canEdit() ? 'inline-flex' : 'none';
+            if (unlockBtn) unlockBtn.style.display = (isLocked && canEdit()) ? 'inline-flex' : 'none';
         }
         
-        // تحميل تبويبات التفاصيل
         await loadOpInvestorsTab(operationId);
         await loadOpTransfersTab(operationId);
         await loadOpTimelineTab(operationId);
         
-        // فتح الـ Modal
         var titleEl = document.getElementById('opDetailsTitle');
         if (titleEl) titleEl.textContent = 'تفاصيل: ' + op.name;
         
@@ -318,9 +316,12 @@ async function openOperationDetails(operationId) {
     }
 }
 
-// ✅ إصلاح: زر إضافة ممول
+// ✅ إصلاح: فتح Modal إضافة ممول وتعبئة القائمة
 async function openAddInvestorToOp() {
-    if (!OPERATIONS_STATE.currentOperationId || !canEdit()) return;
+    if (!OPERATIONS_STATE.currentOperationId || !canEdit()) {
+        showToast('❌ لا توجد صلاحية أو عملية محددة', 'error');
+        return;
+    }
     
     await loadInvestorsForOps();
     
@@ -336,7 +337,95 @@ async function openAddInvestorToOp() {
     if (document.getElementById('newOpInvestorContribution')) document.getElementById('newOpInvestorContribution').value = '';
     if (document.getElementById('newOpInvestorProfit')) document.getElementById('newOpInvestorProfit').value = '';
     
+    var warningEl = document.getElementById('opInvestorValidationWarning');
+    if (warningEl) warningEl.innerHTML = '';
+    
     openModal('addInvestorToOpModal');
+}
+
+// ✅ إضافة: حفظ الممول في operation_investors
+async function saveOpInvestor(form, event) {
+    if (!OPERATIONS_STATE.currentOperationId || !canEdit()) {
+        showToast('❌ لا توجد صلاحية', 'error');
+        return;
+    }
+    
+    var investorId = document.getElementById('newOpInvestorId').value;
+    var contribution = parseFloat(document.getElementById('newOpInvestorContribution').value) || 0;
+    var profit = parseFloat(document.getElementById('newOpInvestorProfit').value) || 0;
+    
+    if (!investorId) {
+        showToast('❌ يرجى اختيار الممول', 'error');
+        return;
+    }
+    
+    if (contribution <= 0) {
+        showToast('❌ المساهمة يجب أن تكون أكبر من صفر', 'error');
+        return;
+    }
+    
+    showLoading();
+    try {
+        var data = {
+            operation_id: OPERATIONS_STATE.currentOperationId,
+            investor_id: investorId,
+            contribution: contribution,
+            profit: profit
+        };
+        
+        var result = await runQuery(function() {
+            return APP.supabase.from('operation_investors').insert(data).select();
+        }, { context: 'saveOpInvestor', throwError: true });
+        
+        if (result.data && result.data[0]) {
+            if (typeof window.logActivityToDB === 'function') {
+                window.logActivityToDB('إضافة ممول لعملية', 'operation_investor', result.data[0].id, null, JSON.stringify(data), 'Operation: ' + OPERATIONS_STATE.currentOperationId, 'create');
+            }
+            showToast('تم إضافة الممول للعملية', 'success');
+        }
+        
+        closeModal('addInvestorToOpModal');
+        await loadOpInvestorsTab(OPERATIONS_STATE.currentOperationId);
+        
+    } catch (err) {
+        debug('❌ خطأ في saveOpInvestor: ' + err.message, 'error');
+        showToast(handleSupabaseError(err, 'إضافة الممول'), 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// ✅ إضافة: حذف ممول من العملية
+async function deleteOpInvestor(opInvestorId) {
+    if (!canEdit()) {
+        showToast('❌ لا توجد صلاحية', 'error');
+        return;
+    }
+    
+    if (!confirmDelete('هذا الممول من العملية')) return;
+    
+    showLoading();
+    try {
+        var oldResult = await runQuery(function() {
+            return APP.supabase.from('operation_investors').select('*').eq('id', opInvestorId).single();
+        }, { context: 'deleteOpInvestor-getOld', throwError: true });
+        
+        await runQuery(function() {
+            return APP.supabase.from('operation_investors').delete().eq('id', opInvestorId);
+        }, { context: 'deleteOpInvestor', throwError: true });
+        
+        if (typeof window.logActivityToDB === 'function') {
+            window.logActivityToDB('حذف ممول من عملية', 'operation_investor', opInvestorId, JSON.stringify(oldResult.data), null, 'Operation: ' + OPERATIONS_STATE.currentOperationId, 'delete');
+        }
+        
+        showToast('تم حذف الممول من العملية', 'success');
+        await loadOpInvestorsTab(OPERATIONS_STATE.currentOperationId);
+        
+    } catch (err) {
+        showToast(handleSupabaseError(err, 'حذف الممول'), 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 async function loadOpInvestorsTab(operationId) {
@@ -344,7 +433,7 @@ async function loadOpInvestorsTab(operationId) {
     if (!container) return;
     
     var result = await runQuery(function() { 
-        return APP.supabase.from('operation_investors').select('*, investors(name)').eq('operation_id', operationId); 
+        return APP.supabase.from('operation_investors').select('id, investor_id, contribution, profit, investors(name)').eq('operation_id', operationId); 
     }, { context: 'loadOpInvestorsTab', throwError: false });
     
     var investors = result.data || [];
@@ -355,10 +444,9 @@ async function loadOpInvestorsTab(operationId) {
     
     var html = '<table style="width:100%"><thead><tr><th>الممول</th><th>المساهمة</th><th>الربح</th><th>الإجراءات</th></tr></thead><tbody>';
     investors.forEach(function(oi) {
-        html += '<tr><td>' + escapeHtml(oi.investors?.name || '-') + '</td><td>' + formatMoney(oi.contribution) + '</td><td>' + formatMoney(oi.profit) + '</td><td class="actions-cell">';
+        html += '<tr><td>' + escapeHtml(oi.investors?.name || '-') + '</td><td>' + formatMoney(oi.contribution) + '</td><td class="profit-field">' + formatMoney(oi.profit) + '</td><td class="actions-cell">';
         if (canEdit()) {
-            html += '<button class="btn btn-secondary btn-sm" onclick="alert(\'تعديل الممول قيد التطوير\')">تعديل</button>';
-            html += '<button class="btn btn-danger btn-sm" onclick="alert(\'حذف الممول قيد التطوير\')">حذف</button>';
+            html += '<button class="btn btn-danger btn-sm" data-action="deleteOpInvestor" data-param="' + oi.id + '">حذف</button>';
         }
         html += '</td></tr>';
     });
@@ -410,7 +498,6 @@ async function loadOpTimelineTab(operationId) {
     container.innerHTML = html;
 }
 
-// Workflow Actions
 async function workflowAction(action) {
     if (!OPERATIONS_STATE.currentOperationId || !canEdit()) return;
     
@@ -446,7 +533,7 @@ async function workflowAction(action) {
         }
         
         showToast('تم تنفيذ الإجراء بنجاح', 'success');
-        openOperationDetails(opId); // إعادة تحميل التفاصيل
+        openOperationDetails(opId);
         
     } catch (err) {
         showToast(handleSupabaseError(err, 'تنفيذ الإجراء'), 'error');
@@ -456,9 +543,7 @@ async function workflowAction(action) {
 }
 
 function openWorkflowTransfer(purpose) {
-    // فتح Modal التحويل مع تحديد الغرض مسبقاً
-    // هذا يتطلب تكامل مع transfers.js
-    alert('فتح تحويل Workflow: ' + purpose + ' (يحتاج تكامل مع Transfers)');
+    showToast('فتح تحويل Workflow: ' + purpose + ' (يتطلب تكامل مع Transfers)', 'info');
 }
 
 async function archiveOperation(operationId) {
