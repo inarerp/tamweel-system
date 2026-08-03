@@ -64,7 +64,71 @@ var PERMISSIONS = {
     ADMIN: 'admin',
     VIEWER: 'viewer'
 };
+// ============================================================
+// 2.1 ADDITIONAL CONSTANTS (مطلوب من dashboard.js و operations.js)
+// ============================================================
 
+var STATUS = {
+    DRAFT: 'draft',
+    ACTIVE: 'active',
+    COMPLETED: 'completed',
+    CANCELLED: 'cancelled',
+    ARCHIVED: 'archived'
+};
+
+var STATUS_TEXT = {
+    'draft': 'تحت الإنشاء',
+    'active': 'نشطة',
+    'completed': 'انتهت',
+    'cancelled': 'ألغيت',
+    'archived': 'مؤرشف'
+};
+
+var PURPOSE_TEXT_AR = {
+    'client_funding': 'تمويل',
+    'client_repayment': 'سداد',
+    'capital_return': 'إرجاع رأس مال',
+    'profit_distribution': 'توزيع أرباح',
+    'settlement': 'تسوية',
+    'additional_funding': 'تمويل إضافي',
+    'investor_deposit': 'إيداع ممول',
+    'investor_withdrawal': 'سحب ممول',
+    'other': 'أخرى'
+};
+
+// ============================================================
+// 2.2 ROLE HELPER FUNCTIONS (مطلوب من auth.js و dashboard.js)
+// ============================================================
+
+function getUserRoleText(role) {
+    var roleMap = {
+        'admin': 'مدير',
+        'viewer': 'مشاهد',
+        'client': 'عميل',
+        'investor': 'ممول'
+    };
+    return roleMap[role] || role || '-';
+}
+
+function getUserPermissionText(permission) {
+    var permissionMap = {
+        'admin': 'إدارة',
+        'viewer': 'مشاهدة'
+    };
+    return permissionMap[permission] || permission || '-';
+}
+
+function isClient() {
+    return APP.userRole === USER_ROLES.CLIENT;
+}
+
+function isInvestor() {
+    return APP.userRole === USER_ROLES.INVESTOR;
+}
+
+function isViewer() {
+    return APP.userRole === USER_ROLES.VIEWER;
+}
 // ============================================================
 // 3. SCREEN LOADERS REGISTRY (مطلوب من app.js)
 // ============================================================
