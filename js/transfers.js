@@ -690,3 +690,23 @@ function _getTransVal(id) { var el = document.getElementById(id); return el ? el
 function _setTransVal(id, value) { var el = document.getElementById(id); if (el) el.value = (value !== null && value !== undefined) ? value : ''; }
 
 if (typeof document !== 'undefined') { initTransfers(); }
+// ============================================================
+// 19. TRANSFER TYPE TEXT (مطلوب من investors.js و clients.js)
+// ============================================================
+
+function getTransferTypeText(type) {
+    var map = {
+        'company_to_client': 'تمويل عميل (شركة ← عميل)',
+        'client_to_company': 'سداد من عميل (عميل ← شركة)',
+        'company_to_investor': 'تحويل لممول (شركة ← ممول)',
+        'investor_to_company': 'إيداع من ممول (ممول ← شركة)',
+        'client_to_investor': 'تحويل من عميل لممول',
+        'investor_to_client': 'تحويل من ممول لعميل'
+    };
+    return map[type] || type || '-';
+}
+
+// إتاحتها لكل الملفات
+if (typeof window !== 'undefined') {
+    window.getTransferTypeText = getTransferTypeText;
+}
