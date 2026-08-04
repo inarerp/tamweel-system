@@ -1,6 +1,6 @@
 // ============================================================
 // نظام إدارة التمويل - Transfers Module (Parties Ledger)
-// Version: 5.3.0 (Dual-Mode Entity Rows: Static + Dynamic)
+// Version: 6.0.0 (Unified Parties Selection)
 // Last Updated: 2026-08-04
 // ============================================================
 
@@ -12,10 +12,7 @@ var TRANSFERS_STATE = {
     listCache: { lastLoad: null, records: null }
 };
 
-// ============================================================
-// 1. TRANSFER FLOW MAP
-// ============================================================
-
+// ✅ كل أنواع التحويلات الستة
 var TRANSFER_FLOW_MAP = Object.freeze({
     'company_to_client': { party_type: 'client', transaction_category: 'client_deposit_in', transfer_type: 'company_to_client', purpose_options: ['client_funding', 'additional_funding', 'settlement', 'other'], label: 'تمويل عميل' },
     'client_to_company': { party_type: 'client', transaction_category: 'client_use_out', transfer_type: 'client_to_company', purpose_options: ['client_repayment', 'settlement', 'other'], label: 'سداد من عميل' },
@@ -34,42 +31,33 @@ var PURPOSE_TEXT_AR = Object.freeze({
 
 if (typeof window !== 'undefined') { window.PURPOSE_TEXT_AR = PURPOSE_TEXT_AR; }
 
-// ============================================================
-// 2. INITIALIZATION
-// ============================================================
-
 function initTransfers() {
-    debug('💸 بدء تهيئة transfers.js (v5.3.0)', 'info');
+    debug('💸 بدء تهيئة transfers.js (v6.0.0)', 'info');
     if (typeof registerScreenLoader === 'function') {
         registerScreenLoader('transfers', loadTransfers);
     }
-    debug('✅ transfers.js v5.3.0 جاهز', 'success');
+    debug('✅ transfers.js v6.0.0 جاهز', 'success');
 }
 
 // ============================================================
-// 3. LOAD TRANSFERS
+// 1. LOAD TRANSFERS
 // ============================================================
 
 async function loadTransfers() {
     debug('💸 بدأ loadTransfers', 'info');
     if (!isSupabaseReady()) return;
-
     showLoading();
-
     try {
         var results = await Promise.all([
             runQuery(function() {
                 var query = APP.supabase.from('transfers')
                     .select('id, reference_number, type, purpose, operation_id, client_id, investor_id, amount, transfer_date, notes, party_type, transaction_category, is_archived, created_at')
                     .order('transfer_date', { ascending: false });
-
                 if (TRANSFERS_STATE.filter) query = query.eq('party_type', TRANSFERS_STATE.filter);
-
                 if (TRANSFERS_STATE.search) {
-                    var searchTerm = '%' + TRANSFERS_STATE.search + '%';
-                    query = query.or('reference_number.ilike.' + searchTerm + ',notes.ilike.' + searchTerm);
+                    var s = '%' + TRANSFERS_STATE.search + '%';
+                    query = query.or('reference_number.ilike.' + s + ',notes.ilike.' + s);
                 }
-
                 return query;
             }, { context: 'loadTransfers-trans', throwError: true }),
             loadClientsForTransfers(),
@@ -81,14 +69,11 @@ async function loadTransfers() {
         var indexes = buildTransfersIndexes(results[1] || [], results[2] || [], results[3] || []);
 
         transfers.forEach(function(t) {
-            if (t.client_id && indexes.clientsById[t.client_id]) {
-                t.client = indexes.clientsById[t.client_id];
-            } else if (t.operation_id && indexes.operationsById[t.operation_id]) {
+            if (t.client_id && indexes.clientsById[t.client_id]) t.client = indexes.clientsById[t.client_id];
+            else if (t.operation_id && indexes.operationsById[t.operation_id]) {
                 var op = indexes.operationsById[t.operation_id];
                 t.client = op.client_id ? indexes.clientsById[op.client_id] : null;
-            } else {
-                t.client = null;
-            }
+            } else t.client = null;
             t.investor = t.investor_id ? indexes.investorsById[t.investor_id] : null;
             t.operation = t.operation_id ? indexes.operationsById[t.operation_id] : null;
         });
@@ -96,80 +81,66 @@ async function loadTransfers() {
         TRANSFERS_STATE.records = transfers;
         TRANSFERS_STATE.listCache.records = transfers;
         TRANSFERS_STATE.listCache.lastLoad = Date.now();
-
         renderTransfersList();
         debug('✅ تم تحميل ' + transfers.length + ' تحويل', 'success');
-
     } catch (err) {
         debug('❌ خطأ في loadTransfers: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'تحميل التحويلات'), 'error');
-    } finally {
-        hideLoading();
-    }
+    } finally { hideLoading(); }
 }
 
 // ============================================================
-// 4. REFERENCE DATA
+// 2. REFERENCE DATA
 // ============================================================
 
 async function loadClientsForTransfers() {
     if (TRANSFERS_STATE.referenceCache.clients) return TRANSFERS_STATE.referenceCache.clients;
     try {
-        var result = await runQuery(function() {
-            return APP.supabase.from('clients').select('id, name, is_archived').order('name');
-        }, { context: 'loadClientsForTransfers', throwError: true });
-        TRANSFERS_STATE.referenceCache.clients = result.data || [];
+        var r = await runQuery(function() { return APP.supabase.from('clients').select('id, name, is_archived').order('name'); }, { context: 'loadClientsForTransfers', throwError: true });
+        TRANSFERS_STATE.referenceCache.clients = r.data || [];
         return TRANSFERS_STATE.referenceCache.clients;
-    } catch (err) { return []; }
+    } catch (e) { return []; }
 }
 
 async function loadInvestorsForTransfers() {
     if (TRANSFERS_STATE.referenceCache.investors) return TRANSFERS_STATE.referenceCache.investors;
     try {
-        var result = await runQuery(function() {
-            return APP.supabase.from('investors').select('id, name, is_archived').order('name');
-        }, { context: 'loadInvestorsForTransfers', throwError: true });
-        TRANSFERS_STATE.referenceCache.investors = result.data || [];
+        var r = await runQuery(function() { return APP.supabase.from('investors').select('id, name, is_archived').order('name'); }, { context: 'loadInvestorsForTransfers', throwError: true });
+        TRANSFERS_STATE.referenceCache.investors = r.data || [];
         return TRANSFERS_STATE.referenceCache.investors;
-    } catch (err) { return []; }
+    } catch (e) { return []; }
 }
 
 async function loadOperationsForTransfers() {
     if (TRANSFERS_STATE.referenceCache.operations) return TRANSFERS_STATE.referenceCache.operations;
     try {
-        var result = await runQuery(function() {
-            return APP.supabase.from('operations')
-                .select('id, name, client_id, amount, status, is_locked, is_archived')
-                .order('name');
-        }, { context: 'loadOperationsForTransfers', throwError: true });
-        TRANSFERS_STATE.referenceCache.operations = result.data || [];
+        var r = await runQuery(function() { return APP.supabase.from('operations').select('id, name, client_id, amount, status, is_locked, is_archived').order('name'); }, { context: 'loadOperationsForTransfers', throwError: true });
+        TRANSFERS_STATE.referenceCache.operations = r.data || [];
         return TRANSFERS_STATE.referenceCache.operations;
-    } catch (err) { return []; }
+    } catch (e) { return []; }
 }
 
 function buildTransfersIndexes(clients, investors, operations) {
-    var clientsById = {}, investorsById = {}, operationsById = {};
-    clients.forEach(function(c) { clientsById[c.id] = c; });
-    investors.forEach(function(inv) { investorsById[inv.id] = inv; });
-    operations.forEach(function(op) { operationsById[op.id] = op; });
-    return { clientsById: clientsById, investorsById: investorsById, operationsById: operationsById };
+    var c = {}, i = {}, o = {};
+    clients.forEach(function(x) { c[x.id] = x; });
+    investors.forEach(function(x) { i[x.id] = x; });
+    operations.forEach(function(x) { o[x.id] = x; });
+    return { clientsById: c, investorsById: i, operationsById: o };
 }
 
 // ============================================================
-// 5. RENDER LIST
+// 3. RENDER LIST
 // ============================================================
 
 function renderTransfersList() {
     var container = document.getElementById('transfersTable');
     if (!container) return;
-
     if (TRANSFERS_STATE.records.length === 0) {
         container.innerHTML = '<div class="empty-state">لا توجد تحويلات</div>';
         return;
     }
 
-    var html = '<table><thead><tr>';
-    html += '<th>الرقم</th><th>التاريخ</th><th>من</th><th>إلى</th><th>الغرض</th><th>المبلغ</th><th>العملية</th><th>ملاحظات</th>';
+    var html = '<table><thead><tr><th>الرقم</th><th>التاريخ</th><th>من</th><th>إلى</th><th>الغرض</th><th>المبلغ</th><th>العملية</th><th>ملاحظات</th>';
     if (canEdit()) html += '<th>الإجراءات</th>';
     html += '</tr></thead><tbody>';
 
@@ -183,14 +154,12 @@ function renderTransfersList() {
         html += '<td class="amount-cell">' + formatMoney(t.amount) + '</td>';
         html += '<td>' + (t.operation ? escapeHtml(t.operation.name) : '-') + '</td>';
         html += '<td>' + escapeHtml(truncateText(t.notes, 30)) + '</td>';
-
         if (canEdit()) {
             html += '<td class="actions-cell">';
             html += '<button class="btn btn-secondary btn-sm" data-action="editTransfer" data-param="' + t.id + '">✏️</button> ';
             html += '<button class="btn btn-danger btn-sm" data-action="deleteTransfer" data-param="' + t.id + '">🗑️</button>';
             html += '</td>';
         }
-
         html += '</tr>';
     });
 
@@ -200,43 +169,84 @@ function renderTransfersList() {
 
 function _getFromText(t) {
     switch (t.type) {
-        case 'company_to_client':
-        case 'company_to_investor':
-            return '🏢 الشركة';
-        case 'client_to_company':
-        case 'client_to_investor':
-            return t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : 'عميل';
-        case 'investor_to_company':
-        case 'investor_to_client':
-            return t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : 'ممول';
-        default:
-            return '-';
+        case 'company_to_client': case 'company_to_investor': return '🏢 الشركة';
+        case 'client_to_company': case 'client_to_investor': return t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : 'عميل';
+        case 'investor_to_company': case 'investor_to_client': return t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : 'ممول';
+        default: return '-';
     }
 }
 
 function _getToText(t) {
     switch (t.type) {
-        case 'client_to_company':
-        case 'investor_to_company':
-            return '🏢 الشركة';
-        case 'company_to_client':
-        case 'investor_to_client':
-            return t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : 'عميل';
-        case 'company_to_investor':
-        case 'client_to_investor':
-            return t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : 'ممول';
-        default:
-            return '-';
+        case 'client_to_company': case 'investor_to_company': return '🏢 الشركة';
+        case 'company_to_client': case 'investor_to_client': return t.client ? '<a href="#" data-action="openClientFile" data-param="' + t.client.id + '">' + escapeHtml(t.client.name) + '</a>' : 'عميل';
+        case 'company_to_investor': case 'client_to_investor': return t.investor ? '<a href="#" data-action="openInvestorFile" data-param="' + t.investor.id + '">' + escapeHtml(t.investor.name) + '</a>' : 'ممول';
+        default: return '-';
     }
 }
 
 // ============================================================
-// 6. OPEN MODAL (مع دعم prefill)
+// 4. ✅✅✅ UNIFIED PARTIES SELECT (الحل الجديد) ✅✅✅
+// ============================================================
+
+/**
+ * بناء قائمة بكل الأطراف (شركة + عملاء + ممولين)
+ */
+function _buildAllPartiesOptions() {
+    var options = '<option value="">-- اختر الحساب --</option>';
+    
+    // 🏢 الشركة
+    options += '<option value="company:company" data-type="company">🏢 الشركة</option>';
+    
+    // 👤 العملاء
+    var clients = TRANSFERS_STATE.referenceCache.clients || [];
+    if (clients.length > 0) {
+        options += '<optgroup label="👤 العملاء">';
+        clients.forEach(function(c) {
+            if (!c.is_archived) {
+                options += '<option value="client:' + c.id + '" data-type="client">👤 ' + escapeHtml(c.name) + '</option>';
+            }
+        });
+        options += '</optgroup>';
+    }
+    
+    // 💼 الممولين
+    var investors = TRANSFERS_STATE.referenceCache.investors || [];
+    if (investors.length > 0) {
+        options += '<optgroup label="💼 الممولين">';
+        investors.forEach(function(inv) {
+            if (!inv.is_archived) {
+                options += '<option value="investor:' + inv.id + '" data-type="investor">💼 ' + escapeHtml(inv.name) + '</option>';
+            }
+        });
+        options += '</optgroup>';
+    }
+    
+    return options;
+}
+
+/**
+ * تحليل القيمة المختارة وإرجاع {type, id}
+ */
+function _parsePartyValue(value) {
+    if (!value) return { type: null, id: null };
+    var parts = value.split(':');
+    return { type: parts[0], id: parts[1] };
+}
+
+/**
+ * استنتاج نوع التحويل من النوعين
+ */
+function _determineTransferType(fromType, toType) {
+    return fromType + '_to_' + toType;
+}
+
+// ============================================================
+// 5. OPEN MODAL (مع دعم prefill)
 // ============================================================
 
 async function openTransferModal(transferId, prefill) {
     if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
-
     var titleEl = document.getElementById('transferModalTitle');
     if (!titleEl) return;
 
@@ -246,23 +256,14 @@ async function openTransferModal(transferId, prefill) {
         loadOperationsForTransfers()
     ]);
 
-    var fromTypeEl = document.getElementById('transferFromType');
-    var toTypeEl = document.getElementById('transferToType');
+    // ✅ ملء القوائم الموحدة
+    var fromEl = document.getElementById('transferFromType');
+    var toEl = document.getElementById('transferToType');
     var opEl = document.getElementById('transferOperation');
 
-    if (fromTypeEl) {
-        fromTypeEl.innerHTML = '<option value="">-- اختر المصدر --</option>' +
-            '<option value="company">🏢 الشركة</option>' +
-            '<option value="client">👤 عميل</option>' +
-            '<option value="investor">💼 ممول</option>';
-    }
-
-    if (toTypeEl) {
-        toTypeEl.innerHTML = '<option value="">-- اختر المستلم --</option>' +
-            '<option value="company">🏢 الشركة</option>' +
-            '<option value="client">👤 عميل</option>' +
-            '<option value="investor">💼 ممول</option>';
-    }
+    var allOptions = _buildAllPartiesOptions();
+    if (fromEl) fromEl.innerHTML = allOptions;
+    if (toEl) toEl.innerHTML = allOptions;
 
     if (opEl && TRANSFERS_STATE.referenceCache.operations) {
         var options = '<option value="">-- بدون عملية --</option>';
@@ -295,124 +296,82 @@ async function openTransferModal(transferId, prefill) {
     openModal('transferModal');
 }
 
-function editTransfer(transferId) {
-    openTransferModal(transferId);
-}
+function editTransfer(transferId) { openTransferModal(transferId); }
 
 // ============================================================
-// 7. ENTITY ROWS (Dual-Mode: يستخدم الموجود أو ينشئ جديد)
-// ============================================================
-
-function _showEntityRow(side, type) {
-    var typeEl = document.getElementById(side === 'from' ? 'transferFromType' : 'transferToType');
-    if (!typeEl) return;
-
-    var rowId = side === 'from' ? 'transferFromEntityRow' : 'transferToEntityRow';
-    var selectId = side === 'from' ? 'transferFromEntity' : 'transferToEntity';
-    var labelId = side === 'from' ? 'transferFromEntityLabel' : 'transferToEntityLabel';
-
-    var row = document.getElementById(rowId);
-    var select = document.getElementById(selectId);
-    var label = document.getElementById(labelId);
-
-    // ✅ إذا لم توجد الحقول في HTML، ننشئها ديناميكياً
-    if (!row || !select) {
-        var old = document.getElementById(rowId);
-        if (old) old.remove();
-
-        if (type !== 'client' && type !== 'investor') return;
-
-        var data = populateEntitySelect(type);
-        if (!data) return;
-
-        row = document.createElement('div');
-        row.id = rowId;
-        row.style.cssText = 'display:block;background:#eef0ff;padding:12px;border-radius:10px;border:2px solid #667eea;margin:12px 0;';
-        row.innerHTML =
-            '<label id="' + labelId + '" style="display:block;font-weight:bold;color:#4c5fd5;margin-bottom:8px;">' + data.label + '</label>' +
-            '<select id="' + selectId + '" style="display:block;width:100%;padding:12px;font-size:16px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;">' + data.options + '</select>';
-
-        var group = typeEl.closest('.form-group');
-        if (group) group.insertAdjacentElement('afterend', row);
-        else typeEl.insertAdjacentElement('afterend', row);
-
-        debug('✅ تم إنشاء حقل الطرف (' + side + ') ديناميكياً', 'success');
-        return;
-    }
-
-    // ✅ الحقول موجودة في HTML: نخفيها أو نظهرها
-    if (type !== 'client' && type !== 'investor') {
-        row.style.display = 'none';
-        select.value = '';
-        return;
-    }
-
-    var data2 = populateEntitySelect(type);
-    if (!data2) return;
-
-    if (label) label.textContent = data2.label;
-    select.innerHTML = data2.options;
-    row.style.display = 'block';
-
-    debug('✅ تم إظهار حقل الطرف (' + side + ')', 'success');
-}
-
-// ============================================================
-// 8. DYNAMIC FIELDS UPDATE
+// 6. DYNAMIC FIELDS UPDATE
 // ============================================================
 
 function updateTransferFields() {
-    var fromTypeEl = document.getElementById('transferFromType');
-    var toTypeEl = document.getElementById('transferToType');
-    if (!fromTypeEl || !toTypeEl) return;
+    var fromEl = document.getElementById('transferFromType');
+    var toEl = document.getElementById('transferToType');
+    if (!fromEl || !toEl) return;
 
-    var fromType = fromTypeEl.value;
-    var toType = toTypeEl.value;
+    var from = _parsePartyValue(fromEl.value);
+    var to = _parsePartyValue(toEl.value);
 
-    // ✅ إظهار/إنشاء حقول الأطراف
-    _showEntityRow('from', fromType);
-    _showEntityRow('to', toType);
+    // ✅ إخفاء الحقول القديمة (لو موجودة)
+    var fromEntityRow = document.getElementById('transferFromEntityRow');
+    var toEntityRow = document.getElementById('transferToEntityRow');
+    if (fromEntityRow) fromEntityRow.style.display = 'none';
+    if (toEntityRow) toEntityRow.style.display = 'none';
 
-    _updatePurposeField(fromType, toType);
-    updateTransferSummary(fromType, toType);
-
-    var fromPartyEl = document.getElementById('transferFromParty');
-    var toPartyEl = document.getElementById('transferToParty');
-    if (fromPartyEl) fromPartyEl.value = fromType;
-    if (toPartyEl) toPartyEl.value = toType;
-}
-
-function populateEntitySelect(type) {
-    var entities = [];
-    var label = '';
-
-    if (type === 'client') {
-        entities = TRANSFERS_STATE.referenceCache.clients || [];
-        label = '👤 اختر العميل *';
-    } else if (type === 'investor') {
-        entities = TRANSFERS_STATE.referenceCache.investors || [];
-        label = '💼 اختر الممول *';
+    // ✅ استنتاج نوع التحويل وتحديث الملخص
+    if (from.type && to.type) {
+        var transferType = _determineTransferType(from.type, to.type);
+        var flow = TRANSFER_FLOW_MAP[transferType];
+        
+        if (flow) {
+            _updatePurposeField(from.type, to.type);
+            updateTransferSummary(from.type, to.type);
+            
+            // ✅ حفظ بيانات الطرف في الحقول المخفية
+            var fromPartyEl = document.getElementById('transferFromParty');
+            var toPartyEl = document.getElementById('transferToParty');
+            var catEl = document.getElementById('transferTransactionCategory');
+            
+            if (fromPartyEl) fromPartyEl.value = from.type;
+            if (toPartyEl) toPartyEl.value = to.type;
+            if (catEl) catEl.value = flow.transaction_category;
+        } else {
+            // نوع غير مسموح (مثل company_to_company)
+            var summaryEl = document.getElementById('transferSummary');
+            if (summaryEl) summaryEl.style.display = 'none';
+            var purposeRow = document.getElementById('transferPurposeRow');
+            if (purposeRow) purposeRow.style.display = 'none';
+        }
     } else {
-        return null;
+        var summaryEl = document.getElementById('transferSummary');
+        if (summaryEl) summaryEl.style.display = 'none';
+        var purposeRow = document.getElementById('transferPurposeRow');
+        if (purposeRow) purposeRow.style.display = 'none';
     }
-
-    var options = '<option value="">-- اختر --</option>';
-    entities.forEach(function(e) {
-        if (!e.is_archived) options += '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>';
-    });
-
-    return { options: options, label: label };
 }
 
 // ============================================================
-// 9. PURPOSE FIELD
+// 7. PURPOSE FIELD
 // ============================================================
 
 function _updatePurposeField(fromType, toType) {
     var purposeRow = document.getElementById('transferPurposeRow');
     var purposeSelect = document.getElementById('transferPurpose');
 
-    if (!purposeRow || !purposeSelect) return;
+    // ✅ إنشاء الحقل لو مش موجود
+    if (!purposeRow) {
+        var amountLabel = document.querySelector('#transferModal label[for="transferAmount"]');
+        if (!amountLabel) return;
+        var amountGroup = amountLabel.closest('.form-group');
+        if (!amountGroup) return;
+
+        purposeRow = document.createElement('div');
+        purposeRow.className = 'form-group';
+        purposeRow.id = 'transferPurposeRow';
+        purposeRow.innerHTML = '<label for="transferPurpose" style="display:block;font-weight:500;margin-bottom:6px;">الغرض *</label><select id="transferPurpose" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>';
+        amountGroup.parentNode.insertBefore(purposeRow, amountGroup);
+        purposeSelect = document.getElementById('transferPurpose');
+    }
+
+    if (!purposeSelect) return;
 
     if (!fromType || !toType) {
         purposeRow.style.display = 'none';
@@ -426,22 +385,19 @@ function _updatePurposeField(fromType, toType) {
     }
 
     var options = '';
-    flow.purpose_options.forEach(function(purpose) {
-        options += '<option value="' + purpose + '">' + (PURPOSE_TEXT_AR[purpose] || purpose) + '</option>';
+    flow.purpose_options.forEach(function(p) {
+        options += '<option value="' + p + '">' + (PURPOSE_TEXT_AR[p] || p) + '</option>';
     });
-
     purposeSelect.innerHTML = options;
     purposeRow.style.display = 'block';
 }
 
 function updateTransferSummary(fromType, toType) {
     var summaryEl = document.getElementById('transferSummary');
-    var summaryFrom = document.getElementById('summaryFrom');
-    var summaryTo = document.getElementById('summaryTo');
-    var summaryCategory = document.getElementById('summaryCategory');
+    if (!summaryEl) return;
 
-    if (!fromType || !toType || !summaryEl) {
-        if (summaryEl) summaryEl.style.display = 'none';
+    if (!fromType || !toType) {
+        summaryEl.style.display = 'none';
         return;
     }
 
@@ -454,49 +410,46 @@ function updateTransferSummary(fromType, toType) {
     var fromText = fromType === 'company' ? '🏢 الشركة' : (fromType === 'client' ? '👤 عميل' : '💼 ممول');
     var toText = toType === 'company' ? '🏢 الشركة' : (toType === 'client' ? '👤 عميل' : '💼 ممول');
 
-    if (summaryFrom) summaryFrom.textContent = fromText;
-    if (summaryTo) summaryTo.textContent = toText;
-    if (summaryCategory) summaryCategory.textContent = flow.label;
+    var sf = document.getElementById('summaryFrom'); if (sf) sf.textContent = fromText;
+    var st = document.getElementById('summaryTo'); if (st) st.textContent = toText;
+    var sc = document.getElementById('summaryCategory'); if (sc) sc.textContent = flow.label;
 
     summaryEl.style.display = 'block';
-
-    var categoryEl = document.getElementById('transferTransactionCategory');
-    if (categoryEl) categoryEl.value = flow.transaction_category;
 }
 
 // ============================================================
-// 10. POPULATE FORM (EDIT)
+// 8. POPULATE FORM (EDIT)
 // ============================================================
 
 function populateTransferForm(transfer, title) {
     var titleEl = document.getElementById('transferModalTitle');
     if (titleEl) titleEl.textContent = title;
 
-    var fromType = 'company', toType = 'company';
+    var fromEl = document.getElementById('transferFromType');
+    var toEl = document.getElementById('transferToType');
 
-    switch (transfer.type) {
-        case 'company_to_client': fromType = 'company'; toType = 'client'; break;
-        case 'client_to_company': fromType = 'client'; toType = 'company'; break;
-        case 'company_to_investor': fromType = 'company'; toType = 'investor'; break;
-        case 'investor_to_company': fromType = 'investor'; toType = 'company'; break;
-        case 'client_to_investor': fromType = 'client'; toType = 'investor'; break;
-        case 'investor_to_client': fromType = 'investor'; toType = 'client'; break;
+    // ✅ تحديد القيمة الصحيحة للقوائم الموحدة
+    if (fromEl) {
+        var fromValue = '';
+        switch (transfer.type) {
+            case 'company_to_client': case 'company_to_investor': fromValue = 'company:company'; break;
+            case 'client_to_company': case 'client_to_investor': fromValue = 'client:' + transfer.client_id; break;
+            case 'investor_to_company': case 'investor_to_client': fromValue = 'investor:' + transfer.investor_id; break;
+        }
+        fromEl.value = fromValue;
     }
 
-    _setTransVal('transferFromType', fromType);
-    _setTransVal('transferToType', toType);
+    if (toEl) {
+        var toValue = '';
+        switch (transfer.type) {
+            case 'client_to_company': case 'investor_to_company': toValue = 'company:company'; break;
+            case 'company_to_client': case 'investor_to_client': toValue = 'client:' + transfer.client_id; break;
+            case 'company_to_investor': case 'client_to_investor': toValue = 'investor:' + transfer.investor_id; break;
+        }
+        toEl.value = toValue;
+    }
 
     updateTransferFields();
-
-    if (transfer.client_id) {
-        if (fromType === 'client') _setTransVal('transferFromEntity', transfer.client_id);
-        else if (toType === 'client') _setTransVal('transferToEntity', transfer.client_id);
-    }
-
-    if (transfer.investor_id) {
-        if (fromType === 'investor') _setTransVal('transferFromEntity', transfer.investor_id);
-        else if (toType === 'investor') _setTransVal('transferToEntity', transfer.investor_id);
-    }
 
     _setTransVal('transferAmount', transfer.amount);
     _setTransVal('transferOperation', transfer.operation_id);
@@ -509,41 +462,47 @@ function populateTransferForm(transfer, title) {
 }
 
 function resetTransferForm() {
-    ['transferId', 'transferFromType', 'transferToType', 'transferFromEntity', 'transferToEntity',
-     'transferAmount', 'transferOperation', 'transferNotes', 'transferTransactionCategory', 'transferPurpose'].forEach(function(id) {
+    ['transferId', 'transferFromType', 'transferToType', 'transferAmount',
+     'transferOperation', 'transferNotes', 'transferTransactionCategory', 'transferPurpose'].forEach(function(id) {
         _setTransVal(id, '');
     });
-
     _setTransVal('transferDate', getTodayDate());
 
     var fromEntityRow = document.getElementById('transferFromEntityRow');
     if (fromEntityRow) fromEntityRow.style.display = 'none';
-
     var toEntityRow = document.getElementById('transferToEntityRow');
     if (toEntityRow) toEntityRow.style.display = 'none';
-
     var purposeRow = document.getElementById('transferPurposeRow');
     if (purposeRow) purposeRow.style.display = 'none';
-
     var summary = document.getElementById('transferSummary');
     if (summary) summary.style.display = 'none';
 }
 
 // ============================================================
-// 11. PREFILL
+// 9. PREFILL (للـ operations.js)
 // ============================================================
 
 function _applyPrefill(prefill) {
     debug('📝 تعبئة مسبقة: ' + JSON.stringify(prefill), 'info');
 
-    if (prefill.fromType) _setTransVal('transferFromType', prefill.fromType);
-    if (prefill.toType) _setTransVal('transferToType', prefill.toType);
+    var fromEl = document.getElementById('transferFromType');
+    var toEl = document.getElementById('transferToType');
+
+    if (prefill.fromType && prefill.fromEntity) {
+        if (fromEl) fromEl.value = prefill.fromType + ':' + prefill.fromEntity;
+    } else if (prefill.fromType === 'company') {
+        if (fromEl) fromEl.value = 'company:company';
+    }
+
+    if (prefill.toType && prefill.toEntity) {
+        if (toEl) toEl.value = prefill.toType + ':' + prefill.toEntity;
+    } else if (prefill.toType === 'company') {
+        if (toEl) toEl.value = 'company:company';
+    }
 
     updateTransferFields();
 
     setTimeout(function() {
-        if (prefill.fromEntity) _setTransVal('transferFromEntity', prefill.fromEntity);
-        if (prefill.toEntity) _setTransVal('transferToEntity', prefill.toEntity);
         if (prefill.amount) _setTransVal('transferAmount', prefill.amount);
         if (prefill.operationId) _setTransVal('transferOperation', prefill.operationId);
         if (prefill.date) _setTransVal('transferDate', prefill.date);
@@ -552,26 +511,29 @@ function _applyPrefill(prefill) {
 }
 
 // ============================================================
-// 12. COLLECT & VALIDATE
+// 10. COLLECT & VALIDATE
 // ============================================================
 
 function collectTransferFormData() {
-    var fromType = _getTransVal('transferFromType');
-    var toType = _getTransVal('transferToType');
-    var fromEntity = _getTransVal('transferFromEntity');
-    var toEntity = _getTransVal('transferToEntity');
+    var fromEl = document.getElementById('transferFromType');
+    var toEl = document.getElementById('transferToType');
+
+    var from = _parsePartyValue(fromEl ? fromEl.value : '');
+    var to = _parsePartyValue(toEl ? toEl.value : '');
 
     var clientId = null, investorId = null;
 
-    if (fromType === 'client') clientId = fromEntity;
-    else if (toType === 'client') clientId = toEntity;
-    else if (fromType === 'investor') investorId = fromEntity;
-    else if (toType === 'investor') investorId = toEntity;
+    if (from.type === 'client') clientId = from.id;
+    else if (to.type === 'client') clientId = to.id;
+    if (from.type === 'investor') investorId = from.id;
+    else if (to.type === 'investor') investorId = to.id;
+
+    var purposeEl = document.getElementById('transferPurpose');
 
     return {
         id: _getTransVal('transferId'),
-        fromType: fromType,
-        toType: toType,
+        fromType: from.type,
+        toType: to.type,
         clientId: clientId,
         investorId: investorId,
         operationId: _getTransVal('transferOperation'),
@@ -579,34 +541,30 @@ function collectTransferFormData() {
         transferDate: _getTransVal('transferDate'),
         notes: _getTransVal('transferNotes').trim(),
         transactionCategory: _getTransVal('transferTransactionCategory'),
-        purpose: _getTransVal('transferPurpose')
+        purpose: purposeEl ? purposeEl.value : ''
     };
 }
 
 async function validateTransferForm(formData) {
-    if (isEmpty(formData.fromType) || isEmpty(formData.toType)) {
-        showToast('❌ مصدر ووجهة الأموال مطلوبان', 'error');
+    if (!formData.fromType || !formData.toType) {
+        showToast('❌ يجب اختيار من وإلى', 'error');
         return false;
     }
 
     if (formData.fromType === formData.toType) {
-        showToast('❌ لا يمكن التحويل من وإلى نفس الطرف', 'error');
+        showToast('❌ لا يمكن التحويل من وإلى نفس النوع', 'error');
+        return false;
+    }
+
+    // ✅ منع تحويل من الشركة إلى الشركة
+    if (formData.fromType === 'company' && formData.toType === 'company') {
+        showToast('❌ لا يمكن التحويل من الشركة إلى نفسها', 'error');
         return false;
     }
 
     var flow = TRANSFER_FLOW_MAP[formData.fromType + '_to_' + formData.toType];
     if (!flow) {
         showToast('❌ هذا النوع من التحويل غير مسموح', 'error');
-        return false;
-    }
-
-    if ((formData.fromType === 'client' || formData.fromType === 'investor') && !formData.clientId && !formData.investorId) {
-        showToast('❌ يجب اختيار الطرف المصدر (مَن أرسل الأموال؟)', 'error');
-        return false;
-    }
-
-    if ((formData.toType === 'client' || formData.toType === 'investor') && !formData.clientId && !formData.investorId) {
-        showToast('❌ يجب اختيار الطرف المستلم (مَن استلم الأموال؟)', 'error');
         return false;
     }
 
@@ -624,12 +582,11 @@ async function validateTransferForm(formData) {
 }
 
 // ============================================================
-// 13. SAVE TRANSFER
+// 11. SAVE TRANSFER
 // ============================================================
 
 async function saveTransfer() {
     if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
-
     var formData = collectTransferFormData();
     if (!(await validateTransferForm(formData))) return;
 
@@ -650,59 +607,39 @@ async function saveTransfer() {
     };
 
     showLoading();
-
     try {
         if (formData.id) {
-            var oldResult = await runQuery(function() {
-                return APP.supabase.from('transfers').select('*').eq('id', formData.id).single();
-            }, { context: 'saveTransfer-getOld', throwError: true });
-
-            await runQuery(function() {
-                return APP.supabase.from('transfers').update(data).eq('id', formData.id);
-            }, { context: 'saveTransfer-update', throwError: true });
-
+            var oldResult = await runQuery(function() { return APP.supabase.from('transfers').select('*').eq('id', formData.id).single(); }, { context: 'saveTransfer-getOld', throwError: true });
+            await runQuery(function() { return APP.supabase.from('transfers').update(data).eq('id', formData.id); }, { context: 'saveTransfer-update', throwError: true });
             if (typeof window.logActivityToDB === 'function') {
-                window.logActivityToDB('تعديل تحويل', 'transfer', formData.id,
-                    JSON.stringify(oldResult.data), JSON.stringify(data),
-                    'From: ' + formData.fromType + ' → To: ' + formData.toType, 'update');
+                window.logActivityToDB('تعديل تحويل', 'transfer', formData.id, JSON.stringify(oldResult.data), JSON.stringify(data), 'From: ' + formData.fromType + ' → To: ' + formData.toType, 'update');
             }
-
             showToast('✅ تم تحديث التحويل', 'success');
         } else {
-            var result = await runQuery(function() {
-                return APP.supabase.from('transfers').insert(data).select();
-            }, { context: 'saveTransfer-insert', throwError: true });
-
+            var result = await runQuery(function() { return APP.supabase.from('transfers').insert(data).select(); }, { context: 'saveTransfer-insert', throwError: true });
             if (result.data && result.data[0]) {
                 if (typeof window.logActivityToDB === 'function') {
-                    window.logActivityToDB('إضافة تحويل', 'transfer', result.data[0].id,
-                        null, JSON.stringify(data),
-                        'From: ' + formData.fromType + ' → To: ' + formData.toType, 'create');
+                    window.logActivityToDB('إضافة تحويل', 'transfer', result.data[0].id, null, JSON.stringify(data), 'From: ' + formData.fromType + ' → To: ' + formData.toType, 'create');
                 }
                 showToast('✅ تم إضافة التحويل', 'success');
             }
         }
-
         closeModal('transferModal');
         clearTransfersListCache();
         loadTransfers();
         refreshRelatedScreens(data.operation_id);
-
     } catch (err) {
         debug('❌ خطأ في saveTransfer: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'حفظ التحويل'), 'error');
-    } finally {
-        hideLoading();
-    }
+    } finally { hideLoading(); }
 }
 
 // ============================================================
-// 14. DELETE TRANSFER
+// 12. DELETE TRANSFER
 // ============================================================
 
 async function deleteTransfer(transferId) {
     if (!canEdit()) { showToast('❌ لا توجد صلاحية', 'error'); return; }
-
     var transfer = TRANSFERS_STATE.records.find(function(t) { return t.id === transferId; });
     if (!transfer) { showToast('❌ التحويل غير موجود', 'error'); return; }
 
@@ -718,101 +655,38 @@ async function deleteTransfer(transferId) {
     if (!confirmAction(warningMsg)) return;
 
     showLoading();
-
     try {
-        var oldResult = await runQuery(function() {
-            return APP.supabase.from('transfers').select('*').eq('id', transferId).single();
-        }, { context: 'deleteTransfer-getOld', throwError: true });
-
-        await runQuery(function() {
-            return APP.supabase.from('transfers').delete().eq('id', transferId);
-        }, { context: 'deleteTransfer-delete', throwError: true });
-
+        var oldResult = await runQuery(function() { return APP.supabase.from('transfers').select('*').eq('id', transferId).single(); }, { context: 'deleteTransfer-getOld', throwError: true });
+        await runQuery(function() { return APP.supabase.from('transfers').delete().eq('id', transferId); }, { context: 'deleteTransfer-delete', throwError: true });
         if (typeof window.logActivityToDB === 'function') {
-            window.logActivityToDB('حذف تحويل', 'transfer', transferId,
-                JSON.stringify(oldResult.data), null,
-                'Amount: ' + (oldResult.data ? oldResult.data.amount : ''), 'delete');
+            window.logActivityToDB('حذف تحويل', 'transfer', transferId, JSON.stringify(oldResult.data), null, 'Amount: ' + (oldResult.data ? oldResult.data.amount : ''), 'delete');
         }
-
         showToast('✅ تم حذف التحويل', 'success');
         clearTransfersListCache();
         loadTransfers();
         refreshRelatedScreens(transfer.operation_id);
-
     } catch (err) {
         showToast(handleSupabaseError(err, 'حذف التحويل'), 'error');
-    } finally {
-        hideLoading();
-    }
+    } finally { hideLoading(); }
 }
 
 // ============================================================
-// 15. REFRESH RELATED SCREENS
+// 13. REFRESH & SEARCH & CACHE
 // ============================================================
 
 function refreshRelatedScreens(operationId) {
-    debug('🔄 تحديث الشاشات المرتبطة...', 'info');
-
-    if (operationId && typeof loadOpInvestorsTab === 'function') {
-        loadOpInvestorsTab(operationId);
-    }
-
-    if (typeof loadDashboard === 'function' && APP.currentScreen === 'dashboard') {
-        loadDashboard();
-    }
-
-    if (typeof loadClients === 'function' && APP.currentScreen === 'clients') {
-        loadClients();
-    }
-
-    if (typeof loadInvestors === 'function' && APP.currentScreen === 'investors') {
-        loadInvestors();
-    }
+    if (operationId && typeof loadOpInvestorsTab === 'function') loadOpInvestorsTab(operationId);
+    if (typeof loadDashboard === 'function' && APP.currentScreen === 'dashboard') loadDashboard();
+    if (typeof loadClients === 'function' && APP.currentScreen === 'clients') loadClients();
+    if (typeof loadInvestors === 'function' && APP.currentScreen === 'investors') loadInvestors();
 }
 
-// ============================================================
-// 16. SEARCH & FILTER & CACHE
-// ============================================================
+function searchTransfers(searchTerm) { TRANSFERS_STATE.search = searchTerm || ''; loadTransfers(); }
+function filterTransfers(filterValue) { TRANSFERS_STATE.filter = filterValue || ''; loadTransfers(); }
+function clearTransfersReferenceCache() { TRANSFERS_STATE.referenceCache.clients = null; TRANSFERS_STATE.referenceCache.investors = null; TRANSFERS_STATE.referenceCache.operations = null; }
+function clearTransfersListCache() { TRANSFERS_STATE.listCache.records = null; TRANSFERS_STATE.listCache.lastLoad = null; }
 
-function searchTransfers(searchTerm) {
-    TRANSFERS_STATE.search = searchTerm || '';
-    loadTransfers();
-}
+function _getTransVal(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+function _setTransVal(id, value) { var el = document.getElementById(id); if (el) el.value = (value !== null && value !== undefined) ? value : ''; }
 
-function filterTransfers(filterValue) {
-    TRANSFERS_STATE.filter = filterValue || '';
-    loadTransfers();
-}
-
-function clearTransfersReferenceCache() {
-    TRANSFERS_STATE.referenceCache.clients = null;
-    TRANSFERS_STATE.referenceCache.investors = null;
-    TRANSFERS_STATE.referenceCache.operations = null;
-}
-
-function clearTransfersListCache() {
-    TRANSFERS_STATE.listCache.records = null;
-    TRANSFERS_STATE.listCache.lastLoad = null;
-}
-
-// ============================================================
-// 17. HELPERS
-// ============================================================
-
-function _getTransVal(id) {
-    var el = document.getElementById(id);
-    return el ? el.value : '';
-}
-
-function _setTransVal(id, value) {
-    var el = document.getElementById(id);
-    if (el) el.value = (value !== null && value !== undefined) ? value : '';
-}
-
-// ============================================================
-// 18. INIT
-// ============================================================
-
-if (typeof document !== 'undefined') {
-    initTransfers();
-}
+if (typeof document !== 'undefined') { initTransfers(); }
