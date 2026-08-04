@@ -710,3 +710,15 @@ function getTransferTypeText(type) {
 if (typeof window !== 'undefined') {
     window.getTransferTypeText = getTransferTypeText;
 }
+// ============================================================
+// 20. PURPOSE TEXT (مطلوب من investors.js و clients.js)
+// ============================================================
+
+function getPurposeText(purpose) {
+    return PURPOSE_TEXT_AR[purpose] || purpose || '-';
+}
+
+// إتاحتها لكل الملفات
+if (typeof window !== 'undefined') {
+    window.getPurposeText = getPurposeText;
+}
