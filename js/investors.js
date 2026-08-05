@@ -876,6 +876,7 @@ async function openInvestorModal(investorId) {
             
             titleEl.textContent = 'تعديل ممول';
             idEl.value = inv.id;
+            INVESTORS_STATE.editingId = inv.id;
             nameEl.value = inv.name || '';
             phoneEl.value = inv.phone || '';
             emailEl.value = inv.email || '';
@@ -890,6 +891,7 @@ async function openInvestorModal(investorId) {
     } else {
         titleEl.textContent = 'إضافة ممول';
         idEl.value = '';
+        INVESTORS_STATE.editingId = null;
         nameEl.value = '';
         phoneEl.value = '';
         emailEl.value = '';
@@ -906,7 +908,7 @@ async function saveInvestor() {
         return;
     }
     
-    var id = document.getElementById('investorId').value;
+    var id = document.getElementById('investorId').value || INVESTORS_STATE.editingId || null;
     var name = document.getElementById('investorName').value.trim();
     var phone = document.getElementById('investorPhone').value.trim();
     var email = document.getElementById('investorEmail').value.trim();
