@@ -870,3 +870,11 @@ if (typeof document !== 'undefined') {
         initCore();
     }
 }
+
+// ✅ GLOBAL HELPERS - مشتركة لكل الملفات
+function getStatusText(s){var m={'draft':'تحت الإنشاء','active':'نشطة','completed':'منتهية','cancelled':'ملغاة','archived':'مؤرشف'};return m[s]||s||'-';}
+function getOperationTypeText(t){var m={'financing':'تمويل','supply':'توريد'};return m[t]||t||'-';}
+function getTransferTypeText(t){var m={'company_to_client':'تمويل عميل (شركة ← عميل)','client_to_company':'سداد من عميل (عميل ← شركة)','company_to_investor':'تحويل لممول (شركة ← ممول)','investor_to_company':'إيداع من ممول (ممول ← شركة)','client_to_investor':'تحويل من عميل لممول','investor_to_client':'تحويل من ممول لعميل'};return m[t]||t||'-';}
+function getPurposeText(p){var m={client_funding:'تمويل',client_repayment:'سداد',capital_return:'إرجاع رأس مال',profit_distribution:'توزيع أرباح',settlement:'تسوية',additional_funding:'تمويل إضافي',other:'أخرى'};return m[p]||p||'-';}
+function getUserRoleText(r){var m={'admin':'مدير','viewer':'مشاهد','client':'عميل','investor':'ممول'};return m[r]||r||'-';}
+function getUserPermissionText(p){var m={'admin':'صلاحيات كاملة','viewer':'مشاهدة فقط'};return m[p]||p||'-';}
