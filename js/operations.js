@@ -123,7 +123,7 @@ async function openOperationModal(operationId) {
             var r = await runQuery(function(){ return APP.supabase.from('operations').select('*').eq('id', operationId).single(); }, { context:'openOperationModal', throwError:true });
             var op = r.data;
             if (!op) { showToast('❌ العملية غير موجودة','error'); return; }
-            titleEl.textContent = 'تعديل عملية'; idEl.value = op.id;
+            titleEl.textContent = 'تعديل عملية'; idEl.value = op.id; OPERATIONS_STATE.editingId = op.id;
             _setVal('opName',op.name); _setVal('opType',op.type); _setVal('opClient',op.client_id);
             _setVal('opAmount',op.amount); _setVal('opInvestorDisplayAmount',op.investor_display_amount);
             _setVal('opExpectedProfit',op.expected_profit); _setVal('opFinalProfit',op.final_profit);
@@ -134,7 +134,7 @@ async function openOperationModal(operationId) {
             _setVal('opStatus',op.status); _setVal('opNotes',op.notes);
         } catch (e) { showToast(handleSupabaseError(e,'جلب بيانات العملية'),'error'); return; }
     } else {
-        titleEl.textContent = 'إضافة عملية'; idEl.value = '';
+        titleEl.textContent = 'إضافة عملية'; idEl.value = ''; OPERATIONS_STATE.editingId = null;
         _setVal('opStartDate', getTodayDate());
     }
     openModal('operationModal');
@@ -150,7 +150,7 @@ function editOperation(id) {
 async function saveOperation(form, event) {
     if (event) event.preventDefault();
     if (!canEdit()) { showToast('❌ لا توجد صلاحية','error'); return; }
-    var id = _getVal('operationId');
+    var id = _getVal('operationId') || OPERATIONS_STATE.editingId || null;
     var data = {
         name: _getVal('opName').trim(), type: _getVal('opType'), client_id: _getVal('opClient') || null,
         amount: parseFloat(_getVal('opAmount')) || 0,
