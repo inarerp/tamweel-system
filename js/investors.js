@@ -1251,7 +1251,7 @@ function switchInvestorTab(tabName, btn) {
     
     debug('📑 تبديل تبويب الممول: ' + tabName, 'info');
 }
-
+function editInvestor(investorId) { openInvestorModal(investorId); }
 
 // ============================================================
 // END OF INVESTORS.JS
