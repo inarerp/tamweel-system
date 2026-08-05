@@ -1131,3 +1131,24 @@ h3 { font-size: 1.25rem; }
 .hidden { display: none !important; }
 .text-center { text-align: center; }
 .cursor-pointer { cursor: pointer; }
+@media (max-width: 768px) {
+  .header { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; }
+  .header h1 { font-size: 1.1rem; text-align: center; }
+  .user-info { justify-content: center; flex-wrap: wrap; gap: 6px; }
+  .nav { display: flex; overflow-x: auto; padding: 6px; gap: 6px; }
+  .nav-btn { flex: 0 0 auto; padding: 10px 14px; font-size: .85rem; }
+  .content { padding: 10px; }
+  .table-header { flex-direction: column; align-items: stretch; gap: 8px; }
+  .table-actions { flex-direction: column; align-items: stretch; }
+  .table-actions input, .table-actions select, .table-actions .btn { width: 100%; }
+  .table-scroll { overflow-x: auto; }
+  .table-scroll table { min-width: 640px; }
+  .modal { padding: 0; }
+  .modal-content, .modal-content.large { max-width: 100%; width: 100%; margin: 0; height: 100%; border-radius: 0; }
+  .form-row { grid-template-columns: 1fr; }
+  .op-summary-grid { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+  .workflow-actions { flex-wrap: wrap; gap: 6px; padding: 10px; }
+  .workflow-actions .btn { flex: 1 1 45%; font-size: .85rem; }
+  .btn { padding: 10px 14px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+}
