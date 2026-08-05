@@ -1021,7 +1021,7 @@ function switchClientTab(tabName, btn) {
     debug('📑 تبديل تبويب العميل: ' + tabName, 'info');
 }
 
-
+function editClient(clientId) { openClientModal(clientId); }
 // ============================================================
 // END OF CLIENTS.JS
 // ============================================================
