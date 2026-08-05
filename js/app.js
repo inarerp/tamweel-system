@@ -375,31 +375,19 @@ function handleGlobalAction(action, target, event) {
 // ============================================================
 
 function handleFormSubmit(handler, form, event) {
-    debug('📤 إرسال نموذج: ' + handler, 'info');
-
-    if (typeof window[handler] !== 'function') {
-        debug('⚠️ handler غير معروف: ' + handler, 'warning');
-        return;
-    }
-
-    // ✅ حماية من الضغط المزدوج
-    if (form.dataset.submitting === 'true') {
-        debug('⚠️ النموذج قيد الإرسال بالفعل - تجاهل', 'warning');
-        return;
-    }
-
-    form.dataset.submitting = 'true';
-
-    Promise.resolve()
-        .then(function() {
-            return window[handler](form, event);
-        })
-        .catch(function(err) {
-            debug('❌ خطأ في ' + handler + ': ' + (err && err.message ? err.message : err), 'error');
-        })
-        .finally(function() {
-            form.dataset.submitting = 'false';
-        });
+debug('📤 إرسال نموذج: ' + handler, 'info');
+if (form.dataset.submitting === 'true') {
+debug('⚠️ إرسال مكرر - تجاهل', 'warning');
+return;
+}
+if (typeof window[handler] === 'function') {
+form.dataset.submitting = 'true';
+var result = window[handler](form, event);
+var release = function() { form.dataset.submitting = 'false'; };
+if (result && typeof result.then === 'function') { result.then(release, release); } else { release(); }
+} else {
+debug('⚠️ handler غير معروف: ' + handler, 'warning');
+}
 }
 
 // ============================================================
