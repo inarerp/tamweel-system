@@ -424,7 +424,7 @@ function updateTransferSummary(fromType, toType) {
 function populateTransferForm(transfer, title) {
     var titleEl = document.getElementById('transferModalTitle');
     if (titleEl) titleEl.textContent = title;
-
+_setTransVal('transferId', transfer.id);
     var fromEl = document.getElementById('transferFromType');
     var toEl = document.getElementById('transferToType');
 
