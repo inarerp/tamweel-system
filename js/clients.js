@@ -647,6 +647,7 @@ async function openClientModal(clientId) {
             
             titleEl.textContent = 'تعديل عميل';
             idEl.value = client.id;
+            CLIENTS_STATE.editingId = client.id;
             nameEl.value = client.name || '';
             phoneEl.value = client.phone || '';
             emailEl.value = client.email || '';
@@ -661,6 +662,7 @@ async function openClientModal(clientId) {
     } else {
         titleEl.textContent = 'إضافة عميل';
         idEl.value = '';
+        CLIENTS_STATE.editingId = null;
         nameEl.value = '';
         phoneEl.value = '';
         emailEl.value = '';
@@ -677,7 +679,7 @@ async function saveClient() {
         return;
     }
     
-    var id = document.getElementById('clientId').value;
+    var id = document.getElementById('clientId').value || CLIENTS_STATE.editingId || null;
     var name = document.getElementById('clientName').value.trim();
     var phone = document.getElementById('clientPhone').value.trim();
     var email = document.getElementById('clientEmail').value.trim();
