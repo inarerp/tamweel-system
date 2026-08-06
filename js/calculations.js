@@ -8,7 +8,7 @@
 // ------------------------------------------------------------
 // Operations        → Business Truth   (حالة العمل، العلاقات، القيم)
 // Transfers         → Accounting Truth (الحركة المالية الفعلية فقط)
-// Calculations      → Financial Engine (هذا الملف: أرقام + قواعد + Timeline)
+// Calculations      → Financial Engine (هذا الملف: أرقام + قواعد)
 // operations.js     → Workflow Controller (ينفذ فقط، لا يحسب)
 // Dashboard/Clients/Investors/Company → Presentation Layer (تعرض فقط)
 //
@@ -34,6 +34,10 @@
 // 7. Statement   8. Timeline       9. Validation
 // 10. Workflow Engine (آخر Section - قواعد فقط)
 // ============================================================
+
+if (typeof console !== 'undefined') {
+    console.log('📊 calculations.js v4.0.0 loading...');
+}
 
 // ============================================================
 // 1. CONSTANTS (لا أرقام سحرية)
@@ -203,8 +207,6 @@ function buildClientStatement(clientId, data) {
 
 // ============================================================
 // 4. INVESTOR ENGINE
-// (RULE 6: المشاركات من operation_investors حتى بدون تحويلات؛
-//  الأموال الفعلية من transfers فقط)
 // ============================================================
 
 function calculateInvestorSummary(investorId, data) {
@@ -257,7 +259,6 @@ function buildInvestorStatement(investorId, data) {
 // 5. OPERATION ENGINE (دوال صغيرة + مجمّع)
 // ============================================================
 
-/** كل تحويلات العملية مصنّفة */
 function getOperationTransfers(operationId, data) {
     var idx = ensureIndexes(data);
     var list = idx.transfersByOperation[operationId] || [];
@@ -273,7 +274,6 @@ function getOperationTransfers(operationId, data) {
     return t;
 }
 
-/** Commitment vs Actual Funding + حالة كل ممول (أرقام فقط) */
 function getOperationFunding(operationId, data) {
     var idx = ensureIndexes(data);
     var op = idx.operationsById[operationId];
@@ -306,7 +306,7 @@ function getOperationFunding(operationId, data) {
         required: required,
         committed: committed,
         funded: tr.investorFunding,
-        clientFunded: tr.clientFunded,
+        clientFunded: tr.clientFunding,
         remainingCommitment: Math.max(0, required - committed),
         remainingFunding: Math.max(0, required - tr.investorFunding),
         committedCoverage: required > 0 ? (committed / required) * 100 : 0,
@@ -315,7 +315,6 @@ function getOperationFunding(operationId, data) {
     };
 }
 
-/** أرباح العملية مصنّفة */
 function getOperationProfits(operationId, data) {
     var idx = ensureIndexes(data);
     var op = idx.operationsById[operationId];
@@ -342,7 +341,6 @@ function getOperationProfits(operationId, data) {
     };
 }
 
-/** Coverage بنوعيه (أرقام فقط — القرار في Workflow Engine) */
 function getCoverage(operationId, data) {
     var f = getOperationFunding(operationId, data);
     return {
@@ -390,14 +388,6 @@ function getCompanyBalance(data) {
     return { cashIn: cashIn, cashOut: cashOut, balance: cashIn - cashOut };
 }
 
-/**
- * أرباح الشركة:
- * expected  : حصة الشركة من expected_profit للعمليات النشطة
- * approved  : حصة الشركة من final_profit المعتمد
- * collected : إجمالي الربح المحصل من العملاء (clientRepayment − capitalReturned)
- * distributed: الأرباح الموزعة على الممولين
- * netProfit : صافي ربح الشركة الفعلي (collected − distributed)
- */
 function getCompanyProfit(data) {
     var idx = ensureIndexes(data);
     var expected = 0, approved = 0, collected = 0, distributed = 0;
@@ -419,11 +409,6 @@ function getCompanyProfit(data) {
     };
 }
 
-/**
- * ملخص الشركة الكامل - جاهز لشاشة حساب الشركة بدون تعديل مستقبلي:
- * currentCash / expectedCashIn / expectedCashOut / activeCapital /
- * outstandingClientBalance / outstandingInvestorProfit
- */
 function calculateCompanySummary(data) {
     var idx = ensureIndexes(data);
     var bal = getCompanyBalance(data);
@@ -523,10 +508,6 @@ function buildStatement(transfers, indexes, type) {
 
 // ============================================================
 // 8. TIMELINE ENGINE
-// يجمع أحداث العملية من: العملية + المساهمات + التحويلات + سجل النشاط
-// @param data يجب أن يحتوي: operations/transfers/operationInvestors
-//              + activityLogs (اختياري لأحداث التفعيل/فتح القفل)
-// @returns مصفوفة مرتبة زمنياً (الأقدم أولاً)
 // ============================================================
 
 function buildOperationTimeline(operationId, data) {
@@ -536,32 +517,26 @@ function buildOperationTimeline(operationId, data) {
 
     var events = [];
 
-    // 1) إنشاء العملية
     events.push({ date: op.created_at, type: 'operation_created', icon: '📝', title: 'إنشاء العملية', details: op.name, amount: _num(op.amount) });
 
-    // 2) إضافة الممولين (التعهدات)
     (idx.opInvestorsByOperation[operationId] || []).forEach(function(oi) {
         var inv = idx.investorsById[oi.investor_id];
         events.push({ date: oi.created_at || op.created_at, type: 'investor_added', icon: '🤝', title: 'إضافة ممول (تعهد)', details: inv ? inv.name : 'ممول', amount: _num(oi.contribution) });
     });
 
-    // 3) التحويلات المالية
     (idx.transfersByOperation[operationId] || []).forEach(function(t) {
         var ev = _transferToTimelineEvent(t, idx);
         if (ev) events.push(ev);
     });
 
-    // 4) اعتماد الربح
     if (op.final_profit && op.profit_approval_date) {
         events.push({ date: op.profit_approval_date, type: 'profit_approved', icon: '✅', title: 'اعتماد الربح النهائي', details: '', amount: _num(op.final_profit) });
     }
 
-    // 5) إنهاء العملية
     if (op.status === STATUS.COMPLETED) {
         events.push({ date: op.updated_at || op.end_date || op.created_at, type: 'operation_completed', icon: '🏁', title: 'إنهاء العملية وقفلها', details: '', amount: 0 });
     }
 
-    // 6) أحداث سجل النشاط الاختيارية (تفعيل / فتح قفل)
     (data.activityLogs || []).forEach(function(l) {
         if (l.entity_id !== operationId) return;
         var a = (l.action_type || l.action || '');
@@ -588,14 +563,12 @@ function _transferToTimelineEvent(t, idx) {
 
 // ============================================================
 // 9. VALIDATION ENGINE
-// كل الدوال ترجع: { valid, errors[], warnings[] } — لا تنفيذ أبداً
 // ============================================================
 
 function _vr() { return { valid: true, errors: [], warnings: [] }; }
 function _vErr(r, m) { r.valid = false; r.errors.push(m); }
 function _vWarn(r, m) { r.warnings.push(m); }
 
-/** استلام مساهمة ممول */
 function validateFunding(operationId, data, investorId, amount) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -613,7 +586,6 @@ function validateFunding(operationId, data, investorId, amount) {
     return r;
 }
 
-/** تحويل التمويل للعميل */
 function validateClientTransfer(operationId, data, amount) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -629,7 +601,6 @@ function validateClientTransfer(operationId, data, amount) {
     return r;
 }
 
-/** تسجيل دفعة من العميل */
 function validateClientRepayment(operationId, data, amount) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -641,12 +612,11 @@ function validateClientRepayment(operationId, data, amount) {
 
     var tr = getOperationTransfers(operationId, data);
     var p = getOperationProfits(operationId, data);
-    var outstanding = Math.max(0, tr.clientRepayment === 0 ? 0 : 0) + Math.max(0, (tr.clientFunding + p.approvedTotal) - tr.clientRepayment);
+    var outstanding = Math.max(0, (tr.clientFunding + p.approvedTotal) - tr.clientRepayment);
     if (_num(amount) > outstanding && outstanding > 0) _vWarn(r, 'الدفعة أكبر من المستحق المتبقي على العميل');
     return r;
 }
 
-/** توزيع الأرباح - amountsByInvestor: { investorId: amount } */
 function validateProfitDistribution(operationId, data, amountsByInvestor) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -660,7 +630,7 @@ function validateProfitDistribution(operationId, data, amountsByInvestor) {
 
     var f = getOperationFunding(operationId, data);
     var total = 0;
-    (amountsByInvestor || {}).constructor === Object && Object.keys(amountsByInvestor || {}).forEach(function(invId) {
+    Object.keys(amountsByInvestor || {}).forEach(function(invId) {
         var amt = _num(amountsByInvestor[invId]);
         if (amt <= 0) return;
         total += amt;
@@ -673,7 +643,6 @@ function validateProfitDistribution(operationId, data, amountsByInvestor) {
     return r;
 }
 
-/** إرجاع رأس المال - amountsByInvestor: { investorId: amount } */
 function validateCapitalReturn(operationId, data, amountsByInvestor) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -697,7 +666,6 @@ function validateCapitalReturn(operationId, data, amountsByInvestor) {
     return r;
 }
 
-/** تفعيل العملية */
 function validateActivate(operationId, data) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -711,7 +679,6 @@ function validateActivate(operationId, data) {
     return r;
 }
 
-/** إنهاء العملية */
 function validateClose(operationId, data) {
     var r = _vr();
     var idx = ensureIndexes(data);
@@ -748,13 +715,11 @@ function getOperationWorkflowState(operationId, data) {
     var locked = !!op.is_locked;
 
     return {
-        // الحالة الخام (للعرض فقط)
         status: op.status,
         locked: locked,
         committedCoverage: f.committedCoverage,
         fundedCoverage: f.fundedCoverage,
 
-        // القدرات (قواعد فقط — التنفيذ في operations.js)
         canEdit: isDraft && !locked,
         canReceiveFunding: !locked && (isDraft || isActive),
         canActivate: isDraft && !locked && f.fundedCoverage >= 100,
@@ -771,3 +736,10 @@ function getOperationWorkflowState(operationId, data) {
 // ============================================================
 // END OF FINANCIAL ENGINE (v4.0.0)
 // ============================================================
+
+if (typeof debug === 'function') {
+    debug('💸 بدء تهيئة calculations.js (v4.0.0)', 'info');
+    debug('✅ calculations.js v4.0.0 جاهز', 'success');
+} else if (typeof console !== 'undefined') {
+    console.log('✅ calculations.js v4.0.0 جاهز');
+}
