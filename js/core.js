@@ -878,3 +878,19 @@ function getTransferTypeText(t){var m={'company_to_client':'تمويل عميل 
 function getPurposeText(p){var m={client_funding:'تمويل',client_repayment:'سداد',capital_return:'إرجاع رأس مال',profit_distribution:'توزيع أرباح',settlement:'تسوية',additional_funding:'تمويل إضافي',other:'أخرى'};return m[p]||p||'-';}
 function getUserRoleText(r){var m={'admin':'مدير','viewer':'مشاهد','client':'عميل','investor':'ممول'};return m[r]||r||'-';}
 function getUserPermissionText(p){var m={'admin':'صلاحيات كاملة','viewer':'مشاهدة فقط'};return m[p]||p||'-';}
+// ============================================================
+// 19. SHARED TEXT HELPERS (v7.1.0) - مشتركة لكل الملفات
+// ============================================================
+if (typeof PURPOSE_TEXT_AR === 'undefined') {
+    var PURPOSE_TEXT_AR = { client_funding:'تمويل', client_repayment:'سداد', capital_return:'إرجاع رأس مال', profit_distribution:'توزيع أرباح', settlement:'تسوية', additional_funding:'تمويل إضافي', other:'أخرى' };
+}
+function getPurposeText(p) { return (typeof PURPOSE_TEXT_AR !== 'undefined' && PURPOSE_TEXT_AR[p]) || p || '-'; }
+function getTransferTypeText(t) {
+    var m = { company_to_client:'تمويل عميل (شركة ← عميل)', client_to_company:'سداد من عميل (عميل ← شركة)', company_to_investor:'تحويل لممول (شركة ← ممول)', investor_to_company:'إيداع من ممول (ممول ← شركة)', client_to_investor:'تحويل من عميل لممول', investor_to_client:'تحويل من ممول لعميل' };
+    return m[t] || t || '-';
+}
+function getStatusText(s) { var m = { draft:'تحت الإنشاء', active:'نشطة', completed:'منتهية', cancelled:'ملغاة', archived:'مؤرشف' }; return m[s] || s || '-'; }
+function getOperationTypeText(t) { var m = { financing:'تمويل', supply:'توريد' }; return m[t] || t || '-'; }
+function editClient(clientId) { if (typeof openClientModal === 'function') openClientModal(clientId); }
+function editInvestor(investorId) { if (typeof openInvestorModal === 'function') openInvestorModal(investorId); }
+if (typeof debug === 'function') debug('🧩 core.js helpers v7.1.0 جاهزة', 'success');
