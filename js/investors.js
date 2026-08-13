@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Investors Module
-// Version: 1.2.0
-// Last Updated: 2026-08-02
+// Version: 1.2.1
+// Last Updated: 2026-08-05
 // ============================================================
 //
 // المسؤوليات:
@@ -25,7 +25,6 @@
 // ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
 // ============================================================
 
-
 // ============================================================
 // 1. STATE
 // ============================================================
@@ -37,7 +36,6 @@ var INVESTORS_STATE = {
     currentFileId: null
 };
 
-
 // ============================================================
 // 2. INITIALIZATION
 // ============================================================
@@ -47,7 +45,6 @@ function initInvestors() {
     registerScreenLoader('investors', loadInvestors);
     debug('✅ investors.js جاهز', 'success');
 }
-
 
 // ============================================================
 // 3. MAIN LOADER
@@ -146,7 +143,6 @@ async function loadInvestors() {
         debug('✅ تم تحميل ' + INVESTORS_STATE.records.length + ' ممول', 'success');
         
         renderInvestorsList();
-        
     } catch (err) {
         debug('❌ خطأ في loadInvestors: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'تحميل الممولين'), 'error');
@@ -191,13 +187,13 @@ function buildInvestorsListIndexes(opInv, transfers, operations) {
     };
 }
 
-
 // ============================================================
 // 4. RENDER INVESTORS LIST
 // ============================================================
 
 function renderInvestorsList() {
     var container = document.getElementById('investorsTable');
+    
     if (!container) {
         debug('⚠️ investorsTable غير موجود', 'warning');
         return;
@@ -258,10 +254,8 @@ function renderInvestorsList() {
     });
     
     html += '</tbody></table>';
-    
     container.innerHTML = html;
 }
-
 
 // ============================================================
 // 5. INVESTOR FILE (ملف الممول الشامل)
@@ -277,7 +271,6 @@ async function openInvestorFile(investorId) {
     if (!isSupabaseReady()) return;
     
     INVESTORS_STATE.currentFileId = investorId;
-    
     showLoading();
     
     try {
@@ -363,7 +356,7 @@ async function openInvestorFile(investorId) {
         }
         
         // بناء Indexes
-        var indexes = buildInvestorsFileIndexes(operations, operationInvestors, investors);
+        var indexes = buildInvestorsFileIndexes(operations, operationInvestors, investors, myTransfers);
         
         var data = {
             operations: operations,
@@ -398,7 +391,6 @@ async function openInvestorFile(investorId) {
         
         // عرض الملف
         renderInvestorFile(investor, summary, data, series);
-        
     } catch (err) {
         debug('❌ خطأ في openInvestorFile: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'فتح ملف الممول'), 'error');
@@ -411,10 +403,12 @@ async function openInvestorFile(investorId) {
  * بناء Indexes لملف الممول
  * Indexes الضرورية فقط (بدون transfersByOperation)
  */
-function buildInvestorsFileIndexes(operations, operationInvestors, investors) {
+function buildInvestorsFileIndexes(operations, operationInvestors, investors, transfers) {
     var operationsById = {};
     var opInvestorsByOperation = {};
+    var opInvestorsByInvestor = {};
     var investorsById = {};
+    var transfersByInvestor = {};
     
     operations.forEach(function(op) {
         operationsById[op.id] = op;
@@ -425,16 +419,36 @@ function buildInvestorsFileIndexes(operations, operationInvestors, investors) {
             opInvestorsByOperation[oi.operation_id] = [];
         }
         opInvestorsByOperation[oi.operation_id].push(oi);
+        
+        // ✅ BUG FIX: بناء index حسب investor_id
+        if (!opInvestorsByInvestor[oi.investor_id]) {
+            opInvestorsByInvestor[oi.investor_id] = [];
+        }
+        opInvestorsByInvestor[oi.investor_id].push(oi);
     });
     
     investors.forEach(function(inv) {
         investorsById[inv.id] = inv;
     });
     
+    // ✅ BUG FIX: بناء index للتحويلات حسب investor_id
+    if (transfers && transfers.length > 0) {
+        transfers.forEach(function(t) {
+            if (t.investor_id) {
+                if (!transfersByInvestor[t.investor_id]) {
+                    transfersByInvestor[t.investor_id] = [];
+                }
+                transfersByInvestor[t.investor_id].push(t);
+            }
+        });
+    }
+    
     return {
         operationsById: operationsById,
         opInvestorsByOperation: opInvestorsByOperation,
-        investorsById: investorsById
+        opInvestorsByInvestor: opInvestorsByInvestor,
+        investorsById: investorsById,
+        transfersByInvestor: transfersByInvestor
     };
 }
 
@@ -502,7 +516,6 @@ function buildInvestorSeries(myContribs, operations) {
     return series;
 }
 
-
 // ============================================================
 // 6. RENDER INVESTOR FILE (مقسّم إلى دوال صغيرة)
 // ============================================================
@@ -521,9 +534,11 @@ function renderInvestorFile(investor, summary, data, series) {
     }
     
     html += renderInvestorTabs();
+    
     html += '<div id="investorTabOperations" class="tab-content active">';
     html += renderInvestorOperations(data);
     html += '</div>';
+    
     html += '<div id="investorTabStatement" class="tab-content">';
     html += renderInvestorStatement(data);
     html += '</div>';
@@ -539,25 +554,28 @@ function renderInvestorHeader(investor) {
     
     html += '<div class="investor-header-actions">';
     html += '<button class="btn btn-secondary" data-action="backToInvestorsList">← رجوع للقائمة</button>';
+    
     if (canEdit() && !investor.is_archived) {
         html += '<div class="investor-header-buttons">';
         html += '<button class="btn btn-secondary" data-action="editInvestor" data-param="' + investor.id + '">✏️ تعديل</button>';
         html += '<button class="btn btn-warning" data-action="archiveInvestor" data-param="' + investor.id + '">📁 أرشفة</button>';
         html += '</div>';
     }
+    
     html += '</div>';
     
     html += '<h2 class="investor-header-name">' + escapeHtml(investor.name) + '</h2>';
     
     html += '<div class="investor-header-info">';
     html += '<span>' + escapeHtml(investor.reference_number || '-') + '</span>';
-    if (investor.phone) html += ' <span class="info-separator">|</span> 📞 ' + escapeHtml(investor.phone);
-    if (investor.email) html += ' <span class="info-separator">|</span> 📧 ' + escapeHtml(investor.email);
+    if (investor.phone) html += '<span class="info-separator">|</span>📞 ' + escapeHtml(investor.phone);
+    if (investor.email) html += '<span class="info-separator">|</span>📧 ' + escapeHtml(investor.email);
     html += '</div>';
     
     if (investor.address) {
         html += '<div class="investor-header-info">📍 ' + escapeHtml(investor.address) + '</div>';
     }
+    
     if (investor.notes) {
         html += '<div class="investor-header-info investor-header-notes">📝 ' + escapeHtml(investor.notes) + '</div>';
     }
@@ -575,7 +593,6 @@ function renderInvestorHeader(investor) {
 function renderInvestorSummaryCard(summary) {
     var html = '<div class="investor-summary-card">';
     html += '<h3 class="summary-title">📊 الملخص المالي</h3>';
-    
     html += '<div class="op-summary-grid">';
     
     html += renderInvestorSummaryItem('رأس المال الكلي', formatMoney(summary.totalCapital), '');
@@ -585,22 +602,22 @@ function renderInvestorSummaryCard(summary) {
     
     // ✅ استخدام allowHtml = true لـ ****
     html += renderInvestorSummaryItem(
-        'الأرباح المستحقة', 
-        canViewProfits() ? formatMoney(summary.outstandingProfit) : '<span class="hidden-profit">****</span>', 
+        'الأرباح المستحقة',
+        canViewProfits() ? formatMoney(summary.outstandingProfit) : '<span class="hidden-profit">****</span>',
         canViewProfits() ? 'green' : '',
         true  // allowHtml
     );
     
     html += renderInvestorSummaryItem(
-        'الأرباح المصروفة', 
-        canViewProfits() ? formatMoney(summary.profitPaid) : '<span class="hidden-profit">****</span>', 
+        'الأرباح المصروفة',
+        canViewProfits() ? formatMoney(summary.profitPaid) : '<span class="hidden-profit">****</span>',
         '',
         true  // allowHtml
     );
     
     html += renderInvestorSummaryItem(
-        'إجمالي الأرباح', 
-        canViewProfits() ? formatMoney(summary.totalProfit) : '<span class="hidden-profit">****</span>', 
+        'إجمالي الأرباح',
+        canViewProfits() ? formatMoney(summary.totalProfit) : '<span class="hidden-profit">****</span>',
         canViewProfits() ? 'blue' : '',
         true  // allowHtml
     );
@@ -649,6 +666,7 @@ function renderInvestorSeries(series) {
         html += '</div>';
         
         html += '<div class="series-stats">';
+        
         html += '<div class="series-stat">';
         html += '<label>شارك في</label>';
         html += '<div>' + s.participatedCount + ' دورة</div>';
@@ -670,6 +688,7 @@ function renderInvestorSeries(series) {
         html += '<div class="series-operations">';
         s.operations.forEach(function(op) {
             var statusBadge = '<span class="badge badge-' + op.status + '">' + getStatusText(op.status) + '</span>';
+            
             html += '<div class="series-operation">';
             html += '<a href="#" data-action="openOperationDetails" data-param="' + op.id + '">' + escapeHtml(op.name) + '</a>';
             html += '<span>' + formatMoney(op.contribution) + '</span>';
@@ -683,7 +702,6 @@ function renderInvestorSeries(series) {
     });
     
     html += '</div>';
-    
     return html;
 }
 
@@ -695,6 +713,7 @@ function renderInvestorTabs() {
     html += '<button class="tab active" data-action="switchInvestorTab" data-tab="operations">العمليات</button>';
     html += '<button class="tab" data-action="switchInvestorTab" data-tab="statement">كشف الحساب</button>';
     html += '</div>';
+    
     return html;
 }
 
@@ -749,7 +768,6 @@ function renderInvestorOperations(data) {
     
     return html;
 }
-
 
 // ============================================================
 // 7. INVESTOR STATEMENT (مفصول build/render)
@@ -831,7 +849,6 @@ function renderInvestorStatement(data) {
     return html;
 }
 
-
 // ============================================================
 // 8. INVESTOR MODAL
 // ============================================================
@@ -869,6 +886,7 @@ async function openInvestorModal(investorId) {
             );
             
             var inv = result.data;
+            
             if (!inv) {
                 showToast('الممول غير موجود', 'error');
                 return;
@@ -876,13 +894,11 @@ async function openInvestorModal(investorId) {
             
             titleEl.textContent = 'تعديل ممول';
             idEl.value = inv.id;
-            INVESTORS_STATE.editingId = inv.id;
             nameEl.value = inv.name || '';
             phoneEl.value = inv.phone || '';
             emailEl.value = inv.email || '';
             addressEl.value = inv.address || '';
             notesEl.value = inv.notes || '';
-            
         } catch (err) {
             debug('❌ خطأ في openInvestorModal: ' + err.message, 'error');
             showToast(handleSupabaseError(err, 'فتح بيانات الممول'), 'error');
@@ -891,7 +907,6 @@ async function openInvestorModal(investorId) {
     } else {
         titleEl.textContent = 'إضافة ممول';
         idEl.value = '';
-        INVESTORS_STATE.editingId = null;
         nameEl.value = '';
         phoneEl.value = '';
         emailEl.value = '';
@@ -908,7 +923,7 @@ async function saveInvestor() {
         return;
     }
     
-    var id = document.getElementById('investorId').value || INVESTORS_STATE.editingId || null;
+    var id = document.getElementById('investorId').value;
     var name = document.getElementById('investorName').value.trim();
     var phone = document.getElementById('investorPhone').value.trim();
     var email = document.getElementById('investorEmail').value.trim();
@@ -961,7 +976,6 @@ async function saveInvestor() {
             
             debug('✅ تم تحديث الممول', 'success');
             showToast('تم تحديث الممول', 'success');
-            
         } else {
             var result = await runQuery(
                 function() {
@@ -992,7 +1006,6 @@ async function saveInvestor() {
         } else {
             loadInvestors();
         }
-        
     } catch (err) {
         debug('❌ خطأ في saveInvestor: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'حفظ الممول'), 'error');
@@ -1000,7 +1013,6 @@ async function saveInvestor() {
         hideLoading();
     }
 }
-
 
 // ============================================================
 // 9. ARCHIVE / UNARCHIVE
@@ -1042,6 +1054,7 @@ async function archiveInvestor(investorId) {
         // التحقق من وجود مساهمات في عمليات نشطة
         if (contribs.length > 0) {
             var opsIds = contribs.map(function(c) { return c.operation_id; });
+            
             var opsResult = await runQuery(
                 function() {
                     return APP.supabase
@@ -1099,8 +1112,8 @@ async function archiveInvestor(investorId) {
         if (INVESTORS_STATE.currentFileId === investorId) {
             INVESTORS_STATE.currentFileId = null;
         }
-        loadInvestors();
         
+        loadInvestors();
     } catch (err) {
         debug('❌ خطأ في archiveInvestor: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'أرشفة الممول'), 'error');
@@ -1151,7 +1164,6 @@ async function unarchiveInvestor(investorId) {
         showToast('تم إلغاء الأرشفة', 'success');
         
         loadInvestors();
-        
     } catch (err) {
         debug('❌ خطأ في unarchiveInvestor: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'إلغاء الأرشفة'), 'error');
@@ -1207,7 +1219,6 @@ async function loadInvestorsFileData(investorId) {
     };
 }
 
-
 // ============================================================
 // 10. SEARCH & FILTER
 // ============================================================
@@ -1221,7 +1232,6 @@ function filterInvestors(filterValue) {
     INVESTORS_STATE.filter = filterValue;
     loadInvestors();
 }
-
 
 // ============================================================
 // 11. NAVIGATION HELPERS
@@ -1251,7 +1261,6 @@ function switchInvestorTab(tabName, btn) {
     
     debug('📑 تبديل تبويب الممول: ' + tabName, 'info');
 }
-function editInvestor(investorId) { openInvestorModal(investorId); }
 
 // ============================================================
 // END OF INVESTORS.JS
