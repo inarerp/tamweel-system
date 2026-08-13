@@ -1,18 +1,16 @@
 // ============================================================
 // نظام إدارة التمويل - Calculations Module (مشترك)
-// Version: 2.3.1
-// Last Updated: 2026-08-05
+// Version: 2.4.0
+// Last Updated: 2026-08-14
 // ============================================================
 //
-// المسؤوليات:
-// - حسابات مشتركة تُستخدم من عدة شاشات
-// - مصدر واحد للحقيقة (Single Source of Truth)
-// - يُستخدم من: dashboard.js, clients.js, investors.js, operations.js
+// ✅ v2.4.0: إضافة Company Engine (Phase 1)
+// - getCompanyBalance()          : رصيد الشركة النقدي من التحويلات الفعلية فقط
+// - calculateCompanySummary()    : الملخص المالي المركزي للشركة
+// - getOperationCompanySummary() : نتيجة كل عملية على الشركة
 //
-// يعتمد على:
-// - core.js (APP, STATUS, Constants)
-//
-// ملاحظة: هذا الملف يُحمّل قبل شاشات الاستخدام
+// قاعدة معمارية: أي شاشة شركة مستقبلًا تعتمد على calculateCompanySummary()
+// ولا تقوم بحساب الأرقام المالية بنفسها.
 // ============================================================
 
 // ============================================================
@@ -494,5 +492,209 @@ function buildStatement(transfers, indexes, type) {
 }
 
 // ============================================================
-// END OF CALCULATIONS.JS (v2.3.1)
+// 7. COMPANY ENGINE (Phase 1 - Company Financial Engine)
+// ============================================================
+//
+// القاعدة: رصيد الشركة النقدي يُشتق من التحويلات الفعلية فقط.
+// - داخل للشركة: investor_to_company + client_to_company
+// - خارج من الشركة: company_to_client + company_to_investor
+// - لا يدخل: client_to_investor / investor_to_client (تحويلات مباشرة بين الأطراف)
+// - لا يُستخدم operation.amount / expected_profit / final_profit كنقد.
+//
+// ============================================================
+
+/**
+ * ✅ تصنيف التحويل من منظور الشركة (داخل/خارج وأي بند)
+ * يرجع: 'in_investor' | 'in_client' | 'out_client' | 'out_investor' | null
+ * يحافظ على backward compatibility مع البيانات القديمة (purpose بدون type).
+ */
+function _companyFlowSide(t) {
+    if (t.type) {
+        if (t.type === 'investor_to_company') return 'in_investor';
+        if (t.type === 'client_to_company') return 'in_client';
+        if (t.type === 'company_to_client') return 'out_client';
+        if (t.type === 'company_to_investor') return 'out_investor';
+        return null;
+    }
+    // fallback للبيانات القديمة بدون type
+    if (_isInvestorFunding(t)) return 'in_investor';
+    if (_isClientRepayment(t)) return 'in_client';
+    if (_isClientFunding(t)) return 'out_client';
+    if (t.purpose === 'capital_return' || t.purpose === 'profit_distribution') return 'out_investor';
+    return null;
+}
+
+/**
+ * ✅ رصيد الشركة النقدي + التدفقات النقدية (من التحويلات الفعلية فقط)
+ */
+function getCompanyBalance(data) {
+    var transfers = data.transfers || [];
+    
+    var cashFromInvestors = 0;
+    var cashFromClients = 0;
+    var cashToClients = 0;
+    var cashToInvestorsCapital = 0;
+    var cashToInvestorsProfit = 0;
+    
+    transfers.forEach(function(t) {
+        var a = parseFloat(t.amount || 0);
+        var side = _companyFlowSide(t);
+        
+        if (side === 'in_investor') cashFromInvestors += a;
+        else if (side === 'in_client') cashFromClients += a;
+        else if (side === 'out_client') cashToClients += a;
+        else if (side === 'out_investor') {
+            if (t.purpose === 'profit_distribution') cashToInvestorsProfit += a;
+            else cashToInvestorsCapital += a;
+        }
+    });
+    
+    var cashIn = cashFromInvestors + cashFromClients;
+    var cashOut = cashToClients + cashToInvestorsCapital + cashToInvestorsProfit;
+    
+    return {
+        companyCashBalance: cashIn - cashOut,
+        cashIn: cashIn,
+        cashOut: cashOut,
+        cashReceivedFromInvestors: cashFromInvestors,
+        cashCollectedFromClients: cashFromClients,
+        cashPaidToClients: cashToClients,
+        cashReturnedToInvestors: cashToInvestorsCapital,
+        cashProfitPaidToInvestors: cashToInvestorsProfit
+    };
+}
+
+/**
+ * ✅ الملخص المالي المركزي للشركة
+ * يجمع فقط أرقامًا موجودة أصلًا في الـ Financial Core.
+ * أي شاشة شركة مستقبلًا تعتمد على هذه الدالة.
+ */
+function calculateCompanySummary(data) {
+    var balance = getCompanyBalance(data);
+    var operations = data.operations || [];
+    
+    var totalClientFunded = 0;
+    var totalClientRepaid = 0;
+    var totalInvestorFunded = 0;
+    var totalInvestorCapitalReturned = 0;
+    var totalInvestorProfitEntitlement = 0;
+    var totalInvestorProfitDistributed = 0;
+    var totalCompanyExpectedProfit = 0;
+    var totalCompanyApprovedProfit = 0;
+    var totalCompanyRealizedProfit = 0;
+    
+    var totalOperations = operations.length;
+    var activeOperations = 0;
+    var completedOperations = 0;
+    var draftOperations = 0;
+    var activeOperationsValue = 0;
+    
+    operations.forEach(function(op) {
+        if (op.status === STATUS.ACTIVE) {
+            activeOperations++;
+            activeOperationsValue += parseFloat(op.amount || 0); // قيمة تعاقدية فقط، ليست نقدًا
+        } else if (op.status === STATUS.COMPLETED) {
+            completedOperations++;
+        } else if (op.status === STATUS.DRAFT) {
+            draftOperations++;
+        }
+        
+        var f = getOperationFunding(op.id, data);
+        var p = getOperationProfits(op.id, data);
+        
+        totalClientFunded += f.clientFunded;
+        totalClientRepaid += f.clientRepayment;
+        totalInvestorFunded += f.funded;
+        totalInvestorCapitalReturned += f.capitalReturned;
+        
+        if (p) {
+            totalInvestorProfitEntitlement += p.investorEntitlement;
+            totalInvestorProfitDistributed += p.investorDistributed;
+            totalCompanyExpectedProfit += p.companyExpected;
+            totalCompanyApprovedProfit += p.companyApproved;
+            totalCompanyRealizedProfit += p.netProfit;
+        }
+    });
+    
+    return {
+        // A) CASH
+        companyCashBalance: balance.companyCashBalance,
+        cashIn: balance.cashIn,
+        cashOut: balance.cashOut,
+        
+        // B) CLIENT MONEY
+        totalClientFunded: totalClientFunded,
+        totalClientRepaid: totalClientRepaid,
+        clientOutstandingCash: totalClientFunded - totalClientRepaid,
+        
+        // C) INVESTOR CAPITAL
+        totalInvestorFunded: totalInvestorFunded,
+        totalInvestorCapitalReturned: totalInvestorCapitalReturned,
+        outstandingInvestorCapital: Math.max(0, totalInvestorFunded - totalInvestorCapitalReturned),
+        
+        // D) INVESTOR PROFITS
+        totalInvestorProfitEntitlement: totalInvestorProfitEntitlement,
+        totalInvestorProfitDistributed: totalInvestorProfitDistributed,
+        outstandingInvestorProfit: Math.max(0, totalInvestorProfitEntitlement - totalInvestorProfitDistributed),
+        
+        // E) COMPANY PROFIT
+        totalCompanyExpectedProfit: totalCompanyExpectedProfit,
+        totalCompanyApprovedProfit: totalCompanyApprovedProfit,
+        totalCompanyRealizedProfit: totalCompanyRealizedProfit,
+        
+        // F) CLIENT CASH FLOWS
+        totalCashPaidToClients: balance.cashPaidToClients,
+        totalCashCollectedFromClients: balance.cashCollectedFromClients,
+        
+        // G) INVESTOR CASH FLOWS
+        totalCashReceivedFromInvestors: balance.cashReceivedFromInvestors,
+        totalCashReturnedToInvestors: balance.cashReturnedToInvestors,
+        totalProfitPaidToInvestors: balance.cashProfitPaidToInvestors,
+        
+        // H) OPERATIONS
+        totalOperations: totalOperations,
+        activeOperations: activeOperations,
+        completedOperations: completedOperations,
+        draftOperations: draftOperations,
+        activeOperationsValue: activeOperationsValue
+    };
+}
+
+/**
+ * ✅ نتيجة العملية على الشركة (Per-Operation Company Result)
+ * يستفيد من الـ Financial Core الحالي بدون إعادة كتابة الحسابات.
+ * ملاحظة: clientOutstandingCash هنا = النقد الفعلي لدى العميل (بدون الربح)،
+ * وهو مختلف عن clientOutstanding في getOperationProfits() الذي يشمل الربح.
+ */
+function getOperationCompanySummary(operationId, data) {
+    var op = data.indexes.operationsById ? data.indexes.operationsById[operationId] : null;
+    if (!op) return null;
+    
+    var f = getOperationFunding(operationId, data);
+    var p = getOperationProfits(operationId, data);
+    var flows = getOperationClientFlows(operationId, data);
+    
+    var companyCashImpact =
+        (f.funded + flows.clientRepaid) -
+        (flows.clientFunded + f.capitalReturned + p.investorDistributed);
+    
+    return {
+        operationValue: parseFloat(op.amount || 0),
+        investorFunded: f.funded,
+        clientFunded: flows.clientFunded,
+        clientRepaid: flows.clientRepaid,
+        investorCapitalReturned: f.capitalReturned,
+        investorProfitDistributed: p.investorDistributed,
+        companyExpectedProfit: p.companyExpected,
+        companyApprovedProfit: p.companyApproved,
+        companyRealizedProfit: p.netProfit,
+        outstandingInvestorCapital: Math.max(0, f.funded - f.capitalReturned),
+        outstandingInvestorProfit: p.investorRemaining,
+        clientOutstandingCash: flows.clientFunded - flows.clientRepaid,
+        companyCashImpact: companyCashImpact
+    };
+}
+
+// ============================================================
+// END OF CALCULATIONS.JS (v2.4.0)
 // ============================================================
