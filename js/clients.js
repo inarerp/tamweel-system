@@ -24,7 +24,6 @@
 // ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
 // ============================================================
 
-
 // ============================================================
 // 1. STATE
 // ============================================================
@@ -36,7 +35,6 @@ var CLIENTS_STATE = {
     currentFileId: null
 };
 
-
 // ============================================================
 // 2. INITIALIZATION
 // ============================================================
@@ -46,7 +44,6 @@ function initClients() {
     registerScreenLoader('clients', loadClients);
     debug('✅ clients.js جاهز', 'success');
 }
-
 
 // ============================================================
 // 3. MAIN LOADER
@@ -95,7 +92,6 @@ async function loadClients() {
         debug('✅ تم تحميل ' + CLIENTS_STATE.records.length + ' عميل', 'success');
         
         renderClientsList();
-        
     } catch (err) {
         debug('❌ خطأ في loadClients: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'تحميل العملاء'), 'error');
@@ -104,13 +100,13 @@ async function loadClients() {
     }
 }
 
-
 // ============================================================
 // 4. RENDER CLIENTS LIST
 // ============================================================
 
 function renderClientsList() {
     var container = document.getElementById('clientsTable');
+    
     if (!container) {
         debug('⚠️ clientsTable غير موجود', 'warning');
         return;
@@ -159,10 +155,8 @@ function renderClientsList() {
     });
     
     html += '</tbody></table>';
-    
     container.innerHTML = html;
 }
-
 
 // ============================================================
 // 5. CLIENT FILE (ملف العميل الشامل)
@@ -178,7 +172,6 @@ async function openClientFile(clientId) {
     if (!isSupabaseReady()) return;
     
     CLIENTS_STATE.currentFileId = clientId;
-    
     showLoading();
     
     try {
@@ -216,7 +209,6 @@ async function openClientFile(clientId) {
         
         // تحميل التحويلات الخاصة بعمليات العميل فقط
         var opsIds = operations.map(function(op) { return op.id; });
-        
         var transfers = [];
         var operationInvestors = [];
         var investors = [];
@@ -273,10 +265,12 @@ async function openClientFile(clientId) {
         // تغيير الشاشة إذا لزم الأمر (بدون تحميل مكرر)
         if (APP.currentScreen !== 'clients') {
             APP.currentScreen = 'clients';
+            
             var screens = document.querySelectorAll('.screen');
             for (var i = 0; i < screens.length; i++) {
                 screens[i].classList.remove('active');
             }
+            
             var clientsScreen = document.getElementById('clients');
             if (clientsScreen) clientsScreen.classList.add('active');
             
@@ -284,13 +278,13 @@ async function openClientFile(clientId) {
             for (var i = 0; i < navBtns.length; i++) {
                 navBtns[i].classList.remove('active');
             }
+            
             var clientsBtn = document.querySelector('.nav-btn[data-screen="clients"]');
             if (clientsBtn) clientsBtn.classList.add('active');
         }
         
         // عرض الملف
         renderClientFile(client, summary, data);
-        
     } catch (err) {
         debug('❌ خطأ في openClientFile: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'فتح ملف العميل'), 'error');
@@ -348,7 +342,6 @@ function buildClientsFileIndexes(operations, transfers, operationInvestors, inve
     };
 }
 
-
 // ============================================================
 // 6. RENDER CLIENT FILE (مقسّم إلى دوال صغيرة)
 // ============================================================
@@ -361,9 +354,11 @@ function renderClientFile(client, summary, data) {
     html += renderClientHeader(client);
     html += renderClientSummaryCard(summary);
     html += renderClientTabs();
+    
     html += '<div id="clientTabOperations" class="tab-content active">';
     html += renderClientOperations(client.id, data);
     html += '</div>';
+    
     html += '<div id="clientTabStatement" class="tab-content">';
     html += renderClientStatement(client.id, data);
     html += '</div>';
@@ -379,25 +374,28 @@ function renderClientHeader(client) {
     
     html += '<div class="client-header-actions">';
     html += '<button class="btn btn-secondary" data-action="backToClientsList">← رجوع للقائمة</button>';
+    
     if (canEdit() && !client.is_archived) {
         html += '<div class="client-header-buttons">';
         html += '<button class="btn btn-secondary" data-action="editClient" data-param="' + client.id + '">✏️ تعديل</button>';
         html += '<button class="btn btn-warning" data-action="archiveClient" data-param="' + client.id + '">📁 أرشفة</button>';
         html += '</div>';
     }
+    
     html += '</div>';
     
     html += '<h2 class="client-header-name">' + escapeHtml(client.name) + '</h2>';
     
     html += '<div class="client-header-info">';
     html += '<span>' + escapeHtml(client.reference_number || '-') + '</span>';
-    if (client.phone) html += ' <span class="info-separator">|</span> 📞 ' + escapeHtml(client.phone);
-    if (client.email) html += ' <span class="info-separator">|</span> 📧 ' + escapeHtml(client.email);
+    if (client.phone) html += '<span class="info-separator">|</span>📞 ' + escapeHtml(client.phone);
+    if (client.email) html += '<span class="info-separator">|</span>📧 ' + escapeHtml(client.email);
     html += '</div>';
     
     if (client.address) {
         html += '<div class="client-header-info">📍 ' + escapeHtml(client.address) + '</div>';
     }
+    
     if (client.notes) {
         html += '<div class="client-header-info client-header-notes">📝 ' + escapeHtml(client.notes) + '</div>';
     }
@@ -413,7 +411,6 @@ function renderClientHeader(client) {
 function renderClientSummaryCard(summary) {
     var html = '<div class="client-summary-card">';
     html += '<h3 class="summary-title">📊 الملخص المالي</h3>';
-    
     html += '<div class="op-summary-grid">';
     
     html += renderSummaryItem('عدد العمليات', summary.totalOperations, '');
@@ -458,6 +455,7 @@ function renderClientTabs() {
     html += '<button class="tab active" data-action="switchClientTab" data-tab="operations">العمليات</button>';
     html += '<button class="tab" data-action="switchClientTab" data-tab="statement">كشف الحساب</button>';
     html += '</div>';
+    
     return html;
 }
 
@@ -479,7 +477,7 @@ function renderClientOperations(clientId, data) {
     html += '<th>البداية</th>';
     html += '<th>النهاية</th>';
     html += '<th>الحالة</th>';
-    html += '<th>التمويل</th>';
+    html += '<th>قيمة العملية</th>';
     html += '<th class="profit-field">الربح</th>';
     html += '<th>القفل</th>';
     html += '</tr></thead>';
@@ -506,7 +504,6 @@ function renderClientOperations(clientId, data) {
     
     return html;
 }
-
 
 // ============================================================
 // 7. CLIENT STATEMENT (مفصول build/render)
@@ -602,7 +599,6 @@ function renderClientStatement(clientId, data) {
     return html;
 }
 
-
 // ============================================================
 // 8. CLIENT MODAL
 // ============================================================
@@ -640,6 +636,7 @@ async function openClientModal(clientId) {
             );
             
             var client = result.data;
+            
             if (!client) {
                 showToast('العميل غير موجود', 'error');
                 return;
@@ -647,13 +644,11 @@ async function openClientModal(clientId) {
             
             titleEl.textContent = 'تعديل عميل';
             idEl.value = client.id;
-            CLIENTS_STATE.editingId = client.id;
             nameEl.value = client.name || '';
             phoneEl.value = client.phone || '';
             emailEl.value = client.email || '';
             addressEl.value = client.address || '';
             notesEl.value = client.notes || '';
-            
         } catch (err) {
             debug('❌ خطأ في openClientModal: ' + err.message, 'error');
             showToast(handleSupabaseError(err, 'فتح بيانات العميل'), 'error');
@@ -662,7 +657,6 @@ async function openClientModal(clientId) {
     } else {
         titleEl.textContent = 'إضافة عميل';
         idEl.value = '';
-        CLIENTS_STATE.editingId = null;
         nameEl.value = '';
         phoneEl.value = '';
         emailEl.value = '';
@@ -679,7 +673,7 @@ async function saveClient() {
         return;
     }
     
-    var id = document.getElementById('clientId').value || CLIENTS_STATE.editingId || null;
+    var id = document.getElementById('clientId').value;
     var name = document.getElementById('clientName').value.trim();
     var phone = document.getElementById('clientPhone').value.trim();
     var email = document.getElementById('clientEmail').value.trim();
@@ -732,7 +726,6 @@ async function saveClient() {
             
             debug('✅ تم تحديث العميل', 'success');
             showToast('تم تحديث العميل', 'success');
-            
         } else {
             var result = await runQuery(
                 function() {
@@ -763,7 +756,6 @@ async function saveClient() {
         } else {
             loadClients();
         }
-        
     } catch (err) {
         debug('❌ خطأ في saveClient: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'حفظ العميل'), 'error');
@@ -771,7 +763,6 @@ async function saveClient() {
         hideLoading();
     }
 }
-
 
 // ============================================================
 // 9. ARCHIVE / UNARCHIVE
@@ -849,8 +840,8 @@ async function archiveClient(clientId) {
         if (CLIENTS_STATE.currentFileId === clientId) {
             CLIENTS_STATE.currentFileId = null;
         }
-        loadClients();
         
+        loadClients();
     } catch (err) {
         debug('❌ خطأ في archiveClient: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'أرشفة العميل'), 'error');
@@ -901,7 +892,6 @@ async function unarchiveClient(clientId) {
         showToast('تم إلغاء الأرشفة', 'success');
         
         loadClients();
-        
     } catch (err) {
         debug('❌ خطأ في unarchiveClient: ' + err.message, 'error');
         showToast(handleSupabaseError(err, 'إلغاء الأرشفة'), 'error');
@@ -976,7 +966,6 @@ async function loadClientsFileData(clientId) {
     };
 }
 
-
 // ============================================================
 // 10. SEARCH & FILTER
 // ============================================================
@@ -990,7 +979,6 @@ function filterClients(filterValue) {
     CLIENTS_STATE.filter = filterValue;
     loadClients();
 }
-
 
 // ============================================================
 // 11. NAVIGATION HELPERS
@@ -1021,7 +1009,6 @@ function switchClientTab(tabName, btn) {
     debug('📑 تبديل تبويب العميل: ' + tabName, 'info');
 }
 
-function editClient(clientId) { openClientModal(clientId); }
 // ============================================================
 // END OF CLIENTS.JS
 // ============================================================
