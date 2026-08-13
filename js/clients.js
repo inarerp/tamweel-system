@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Clients Module
-// Version: 2.0.0
-// Last Updated: 2026-08-02
+// Version: 2.0.1
+// Last Updated: 2026-08-05
 // ============================================================
 //
 // المسؤوليات:
@@ -191,7 +191,7 @@ async function openClientFile(clientId) {
                 function() {
                     return APP.supabase
                         .from('operations')
-                        .select('id, name, type, status, amount, final_profit, profit_approval_date, start_date, end_date, created_at, is_locked')
+                        .select('id, name, type, status, amount, client_id, final_profit, profit_approval_date, start_date, end_date, created_at, is_locked')
                         .eq('client_id', clientId)
                         .order('created_at', { ascending: false });
                 },
@@ -908,7 +908,7 @@ async function loadClientsFileData(clientId) {
         function() {
             return APP.supabase
                 .from('operations')
-                .select('id, name, type, status, amount, final_profit, profit_approval_date, start_date, end_date, created_at, is_locked')
+                .select('id, name, type, status, amount, client_id, final_profit, profit_approval_date, start_date, end_date, created_at, is_locked')
                 .eq('client_id', clientId)
                 .order('created_at', { ascending: false });
         },
