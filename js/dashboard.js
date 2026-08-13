@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Dashboard Module
-// Version: 2.0.0
-// Last Updated: 2026-08-02
+// Version: 2.0.1
+// Last Updated: 2026-08-14
 // ============================================================
 //
 // المسؤوليات:
@@ -13,11 +13,10 @@
 // يعتمد على:
 // - core.js (APP, runQuery, debug, Constants, etc.)
 // - auth.js (isAdmin, isClient, isInvestor, isViewer, etc.)
-// - calculations.js (calculateClientSummary, calculateInvestorSummary, calculateOperationSummary)
+// - calculations.js (calculateClientSummary, calculateInvestorSummary, calculateOperationSummary, getOperationClientFlows)
 //
 // ملاحظة: لا يحتوي على DOMContentLoaded (app.js هو Bootstrap)
 // ============================================================
-
 
 // ============================================================
 // 1. INITIALIZATION
@@ -28,7 +27,6 @@ function initDashboard() {
     registerScreenLoader('dashboard', loadDashboard);
     debug('✅ dashboard.js جاهز', 'success');
 }
-
 
 // ============================================================
 // 2. MAIN LOADER
@@ -73,7 +71,6 @@ async function loadDashboard() {
     }
 }
 
-
 // ============================================================
 // 3. DATA LOADING (مع Indexes)
 // ============================================================
@@ -102,7 +99,7 @@ async function loadDashboardData() {
     var transResult = await runQuery(
         function() {
             return APP.supabase.from('transfers').select(
-                'id, operation_id, investor_id, purpose, amount'
+                'id, type, operation_id, investor_id, purpose, amount'
             );
         },
         { context: 'loadDashboardData-trans', throwError: true }
@@ -152,6 +149,7 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
     
     operations.forEach(function(op) {
         operationsById[op.id] = op;
+        
         if (op.client_id) {
             if (!clientOperations[op.client_id]) {
                 clientOperations[op.client_id] = [];
@@ -182,6 +180,7 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
             }
             transfersByOperation[t.operation_id].push(t);
         }
+        
         if (t.investor_id) {
             if (!transfersByInvestor[t.investor_id]) {
                 transfersByInvestor[t.investor_id] = [];
@@ -202,15 +201,14 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
     };
 }
 
-
 // ============================================================
 // 4. RENDER HELPERS
 // ============================================================
 
 function renderStatCard(title, value, colorClass, options) {
     options = options || {};
-    var clickAttr = '';
     
+    var clickAttr = '';
     if (options.action === 'showScreen') {
         clickAttr = ' data-action="showScreen" data-screen="' + options.screen + '" style="cursor: pointer;"';
     } else if (options.action === 'navigateToEntity') {
@@ -227,7 +225,6 @@ function renderStatCard(title, value, colorClass, options) {
 
 function renderAlert(alert) {
     var clickAttr = '';
-    
     if (alert.action === 'showScreen') {
         clickAttr = ' data-action="showScreen" data-screen="' + alert.screen + '" style="cursor: pointer;"';
     } else if (alert.action === 'navigateToEntity') {
@@ -241,7 +238,6 @@ function renderAlert(alert) {
 
 function renderActionCard(action) {
     var clickAttr = '';
-    
     if (action.action === 'showScreen') {
         clickAttr = ' data-action="showScreen" data-screen="' + action.screen + '" style="cursor: pointer;"';
     } else if (action.action === 'navigateToEntity') {
@@ -269,7 +265,6 @@ function renderSection(title, icon, borderColor, content) {
            content +
            '</div>';
 }
-
 
 // ============================================================
 // 5. ADMIN DASHBOARD
@@ -300,7 +295,6 @@ async function loadDashboardForViewer() {
     debug('👁️ تحميل Dashboard للمراقب', 'info');
     await loadDashboardForAdmin();
 }
-
 
 // ============================================================
 // 6. CLIENT DASHBOARD
@@ -381,13 +375,11 @@ async function loadDashboardForClient() {
         statsHtml += renderStatCard('مسودات', summary.draftOperations, '');
         
         statsContainer.innerHTML = statsHtml;
-        
     } catch (err) {
         debug('❌ خطأ في loadDashboardForClient: ' + err.message, 'error');
         alertsContainer.innerHTML = '<div class="error-box">حدث خطأ في تحميل البيانات</div>';
     }
 }
-
 
 // ============================================================
 // 7. INVESTOR DASHBOARD
@@ -471,13 +463,11 @@ async function loadDashboardForInvestor() {
         statsHtml += renderStatCard('إجمالي المشاركات', summary.totalOperations, '');
         
         statsContainer.innerHTML = statsHtml;
-        
     } catch (err) {
         debug('❌ خطأ في loadDashboardForInvestor: ' + err.message, 'error');
         alertsContainer.innerHTML = '<div class="error-box">حدث خطأ في تحميل البيانات</div>';
     }
 }
-
 
 // ============================================================
 // 8. RENDER ACTIONS
@@ -568,6 +558,7 @@ function renderDashboardActions(data) {
     }
     
     var clientsWithBalance = [];
+    
     data.clients.forEach(function(client) {
         if (client.is_archived) return;
         
@@ -601,7 +592,6 @@ function renderDashboardActions(data) {
     
     return renderSection('إجراءات مطلوبة', '⚡', '#fd7e14', actionsHtml);
 }
-
 
 // ============================================================
 // 9. RENDER ALERTS
@@ -697,7 +687,6 @@ function renderDashboardAlerts(data) {
     return renderSection('تنبيهات (' + alerts.length + ')', '🔔', '#17a2b8', alertsHtml);
 }
 
-
 // ============================================================
 // 10. RENDER STATS
 // ============================================================
@@ -727,7 +716,8 @@ function renderDashboardStats(data) {
             
             var summary = calculateOperationSummary(op.id, data);
             if (summary) {
-                totalOutstandingCapital += Math.max(0, parseFloat(op.amount || 0) - summary.clientRepaid);
+                var flows = getOperationClientFlows(op.id, data);
+                totalOutstandingCapital += Math.max(0, flows.clientFunded - flows.clientRepaid);
                 totalOutstandingInvestorProfit += summary.remainingProfit;
             }
         }
@@ -783,7 +773,6 @@ function renderDashboardStats(data) {
     
     return html;
 }
-
 
 // ============================================================
 // END OF DASHBOARD.JS
