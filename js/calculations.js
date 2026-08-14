@@ -1,8 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Calculations Module (مشترك)
-// Version: 2.7.0
-// v2.7.0: financing clientDueTotal = required + investorEntitlement + companyApproved
-//         getCompanyBalance: فصل settlement/other عن capital_return
+// Version: 2.8.0
+// v2.8.0: P1#4 - لا يُحتسب Profit Collected إذا لم يوجد client funding
 // ============================================================
 function _isInvestorFunding(t){ if(t.type) return (t.type==='investor_to_company'); return (t.purpose==='capital_funding'||t.purpose==='client_funding'); }
 function _isClientFunding(t){ if(t.type) return (t.type==='company_to_client'); return (t.purpose==='client_funding'||t.purpose==='additional_funding'); }
@@ -36,7 +35,9 @@ function getOperationProfits(id,data){ var op=data.indexes.operationsById?data.i
  var exp=parseFloat(op.expected_profit||0); var approved,cExp,cApp,due;
  if(_isFinancing(op)){ approved=parseFloat(op.final_profit||0)||exp; cApp=_financingCompanyProfit(op); cExp=cApp; due=f.required+ent+cApp; }
  else { approved=(op.final_profit&&op.profit_approval_date)?parseFloat(op.final_profit||0):0; cExp=_companyShare(op,exp); cApp=_companyShare(op,approved); due=f.required+approved; }
- var collected=Math.max(0,f.clientRepayment-f.clientFunded); var net=Math.max(0,collected-f.profitDistributed); var pdt=_operationProfitDate(op);
+ // ✅ P1#4: لا ربح محصل بدون تمويل فعلي للعميل
+ var collected=(f.clientFunded<=0)?0:Math.max(0,f.clientRepayment-f.clientFunded);
+ var net=Math.max(0,collected-f.profitDistributed); var pdt=_operationProfitDate(op);
  return {expectedTotal:exp,approvedTotal:approved,companyExpected:cExp,companyApproved:cApp,investorEntitlement:ent,investorDistributed:f.profitDistributed,investorRemaining:Math.max(0,ent-f.profitDistributed),capitalReturned:f.capitalReturned,clientRepayment:f.clientRepayment,clientFunded:f.clientFunded,totalProfitCollected:collected,netProfit:net,clientDueTotal:due,clientOutstanding:Math.max(0,due-f.clientRepayment),profitAllocatedTotal:ent+cApp,profitReconciliationDifference:(ent+cApp)-approved,profitReconciled:(approved>0)?Math.abs((ent+cApp)-approved)<0.01:true,profitDate:pdt.date,profitDateLabel:pdt.label,opType:op.type}; }
 function _companyShare(op,base){ base=parseFloat(base||0); if(!base||!op)return 0; if(op.company_profit_type==='percentage')return (base*parseFloat(op.company_profit_value||0))/100; if(op.company_profit_type==='fixed')return parseFloat(op.company_profit_value||0); return 0; }
 function getCoverage(id,data){ var f=getOperationFunding(id,data); return {required:f.required,committed:f.committed,funded:f.funded,remainingCommitment:f.remainingCommitment,remainingFunding:f.remainingFunding,remainingClientFunding:f.remainingClientFunding,committedCoverage:f.committedCoverage,fundedCoverage:f.fundedCoverage}; }
@@ -61,5 +62,5 @@ function getOperationCompanySummary(id,data){ var op=data.indexes.operationsById
  return {operationValue:parseFloat(op.amount||0),investorFunded:f.funded,clientFunded:fl.clientFunded,clientRepaid:fl.clientRepaid,investorCapitalReturned:f.capitalReturned,investorProfitDistributed:p.investorDistributed,companyExpectedProfit:p.companyExpected,companyApprovedProfit:p.companyApproved,companyRealizedProfit:p.netProfit,outstandingInvestorCapital:Math.max(0,f.funded-f.capitalReturned),outstandingInvestorProfit:p.investorRemaining,clientOutstandingCash:fl.clientFunded-fl.clientRepaid,companyCashImpact:(f.funded+fl.clientRepaid)-(fl.clientFunded+f.capitalReturned+p.investorDistributed)}; }
 function getCompanyProfitForPeriod(data,from,to){ var ops=data.operations||[],ta=0,ae=0,rows=[]; ops.forEach(function(op){ var p=getOperationProfits(op.id,data); if(!p)return; ae+=p.companyExpected; var d=p.profitDate; var inP=!!d&&(!from||d>=from)&&(!to||d<=to); if(inP){ ta+=p.companyApproved; var cl=(data.indexes&&data.indexes.clientsById)?data.indexes.clientsById[op.client_id]:null; rows.push({operationId:op.id,reference:op.reference_number||'-',name:op.name||'-',clientName:cl?cl.name:'-',totalOperationProfit:p.approvedTotal,companyShare:p.companyApproved,approvalDate:d,profitDate:d,profitDateLabel:p.profitDateLabel,opType:op.type}); } }); rows.sort(function(a,b){return (a.profitDate||'').localeCompare(b.profitDate||'');}); return {from:from||null,to:to||null,totalCompanyApprovedProfit:ta,allTimeExpectedProfit:ae,operations:rows}; }
 // ============================================================
-// END OF CALCULATIONS.JS (v2.7.0)
+// END OF CALCULATIONS.JS (v2.8.0)
 // ============================================================
