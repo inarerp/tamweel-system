@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Transfers Module (Parties Ledger)
-// Version: 6.2.2
-// v6.2.2: P2-1 - فرض سقوف مالية على المسار اليدوي باستخدام الـ Core
+// Version: 6.3.0
+// v6.3.0: P2-1 final - رفض الطرف غير المرتبط بالعمليّة / العميل غير المطابق
 // ============================================================
 var TRANSFERS_STATE={search:'',filter:'',records:[],referenceCache:{clients:null,investors:null,operations:null},listCache:{lastLoad:null,records:null}};
 var TRANSFER_FLOW_MAP=Object.freeze({
@@ -28,7 +28,6 @@ function _buildAllPartiesOptions(){ var o='<option value="">-- اختر الحس
 function _parsePartyValue(v){ if(!v)return{type:null,id:null}; var p=v.split(':'); return {type:p[0],id:p[1]}; }
 function _determineTransferType(f,t){ return f+'_to_'+t; }
 
-// ✅ P2-1: بناء بيانات العملية مع استبعاد التحويل الجاري تحريره
 async function _buildOpCalcDataExcluding(opId,excludeId){
  var r=await Promise.all([
   runQuery(function(){return APP.supabase.from('operations').select('*').eq('id',opId).single();},{context:'cap-op',throwError:true}),
@@ -42,21 +41,39 @@ async function _buildOpCalcDataExcluding(opId,excludeId){
  idx.transfersByOperation[opId]=ts;
  return {operations:r[0].data?[r[0].data]:[],operationInvestors:r[1].data||[],transfers:ts,indexes:idx};
 }
-// ✅ P2-1: سقوف مالية للمسار اليدوي باستخدام الـ Core (بدون operation = بدون سقف)
+
+// ✅ P2-1 final: سقوف مالية + رفض الطرف غير المرتبط / العميل غير المطابق
 async function _validateTransferCaps(fd){
  if(!fd.operationId) return {ok:true};
  var data=await _buildOpCalcDataExcluding(fd.operationId, fd.id);
+ var op=data.operations&&data.operations[0]?data.operations[0]:null;
  var f=getOperationFunding(fd.operationId,data);
  var p=getOperationProfits(fd.operationId,data);
  var amt=parseFloat(fd.amount)||0;
  var type=fd.fromType+'_to_'+fd.toType;
  var pi=null; f.perInvestor.forEach(function(x){ if(x.investorId===fd.investorId)pi=x; });
- if(type==='investor_to_company'){ if(pi&&amt>pi.remaining+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز المتبقي للممول ('+formatMoney(pi.remaining)+')'}; }
- else if(type==='client_to_company'){ if(amt>p.clientOutstanding+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز المستحق من العميل ('+formatMoney(p.clientOutstanding)+')'}; }
- else if(type==='company_to_client'){ if(amt>f.remainingClientFunding+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز المتبقي لتمويل العميل ('+formatMoney(f.remainingClientFunding)+')'}; }
+
+ if(type==='investor_to_company'){
+   if(!pi) return {ok:false,msg:'❌ الممول غير مرتبط بهذه العملية، لا يمكن تسجيل تمويل عليها.'};
+   if(amt>pi.remaining+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز المتبقي للممول ('+formatMoney(pi.remaining)+')'};
+ }
+ else if(type==='client_to_company'){
+   if(op&&op.client_id&&fd.clientId&&fd.clientId!==op.client_id) return {ok:false,msg:'❌ العميل المحدد لا يطابق عميل العملية.'};
+   if(amt>p.clientOutstanding+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز المستحق من العميل ('+formatMoney(p.clientOutstanding)+')'};
+ }
+ else if(type==='company_to_client'){
+   if(op&&op.client_id&&fd.clientId&&fd.clientId!==op.client_id) return {ok:false,msg:'❌ العميل المحدد لا يطابق عميل العملية.'};
+   if(amt>f.remainingClientFunding+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز المتبقي لتمويل العميل ('+formatMoney(f.remainingClientFunding)+')'};
+ }
  else if(type==='company_to_investor'){
-   if(fd.purpose==='capital_return'){ if(pi&&amt>pi.remainingCapital+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز رأس المال المتبقي ('+formatMoney(pi.remainingCapital)+')'}; }
-   else if(fd.purpose==='profit_distribution'){ if(pi&&amt>pi.remainingProfit+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز الربح المتبقي ('+formatMoney(pi.remainingProfit)+')'}; }
+   if(fd.purpose==='capital_return'){
+     if(!pi) return {ok:false,msg:'❌ الممول غير مرتبط بهذه العملية، لا يمكن إرجاع رأس مال عليها.'};
+     if(amt>pi.remainingCapital+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز رأس المال المتبقي ('+formatMoney(pi.remainingCapital)+')'};
+   }
+   else if(fd.purpose==='profit_distribution'){
+     if(!pi) return {ok:false,msg:'❌ الممول غير مرتبط بهذه العملية، لا يمكن توزيع أرباح عليها.'};
+     if(amt>pi.remainingProfit+0.01) return {ok:false,msg:'❌ المبلغ يتجاوز الربح المتبقي ('+formatMoney(pi.remainingProfit)+')'};
+   }
  }
  return {ok:true};
 }
@@ -74,7 +91,7 @@ async function validateTransferForm(d){ if(!d.fromType||!d.toType){showToast('�
 async function _assertOperationEditable(opId){ if(!opId)return true; var r=await runQuery(function(){return APP.supabase.from('operations').select('is_locked, status').eq('id',opId).single();},{context:'transfer-opLock',throwError:false}); if(!r.data)return true; return !(r.data.is_locked===true||r.data.status==='completed'||r.data.status==='cancelled'); }
 
 async function saveTransfer(){ if(!canEdit()){showToast('❌ لا توجد صلاحية','error');return;} var d=collectTransferFormData(); if(!(await validateTransferForm(d)))return;
- var caps=await _validateTransferCaps(d); if(!caps.ok){ showToast(caps.msg,'error'); return; }   // ✅ P2-1
+ var caps=await _validateTransferCaps(d); if(!caps.ok){ showToast(caps.msg,'error'); return; }
  var flow=TRANSFER_FLOW_MAP[d.fromType+'_to_'+d.toType]; var purpose=d.purpose||flow.purpose_options[0]; var data={type:flow.transfer_type,purpose:purpose,operation_id:d.operationId||null,client_id:d.clientId||null,investor_id:d.investorId||null,amount:parseFloat(d.amount),transfer_date:d.transferDate,notes:d.notes||null,party_type:flow.party_type,transaction_category:d.transactionCategory||flow.transaction_category}; showLoading(); try{ if(d.id){ var old=await runQuery(function(){return APP.supabase.from('transfers').select('*').eq('id',d.id).single();},{context:'saveTransfer-getOld',throwError:true}); var oldOp=old.data?old.data.operation_id:null; if(!(await _assertOperationEditable(oldOp))){showToast('❌ العملية مقفلة/منتهية - لا يمكن التعديل','error');hideLoading();return;} if(d.operationId&&d.operationId!==oldOp&&!(await _assertOperationEditable(d.operationId))){showToast('❌ العملية المقصودة مقفلة/منتهية','error');hideLoading();return;} await runQuery(function(){return APP.supabase.from('transfers').update(data).eq('id',d.id);},{context:'saveTransfer-update',throwError:true}); _logT('تعديل تحويل','transfer',d.id,JSON.stringify(old.data),JSON.stringify(data),'update'); showToast('✅ تم التحديث','success'); } else { var r=await runQuery(function(){return APP.supabase.from('transfers').insert(data).select();},{context:'saveTransfer-insert',throwError:true}); if(r.data&&r.data[0]){_logT('إضافة تحويل','transfer',r.data[0].id,null,JSON.stringify(data),'create'); showToast('✅ تم الإضافة','success');} } closeModal('transferModal'); loadTransfers(); refreshRelatedScreens(data.operation_id); } catch(e){ showToast(handleSupabaseError(e,'حفظ التحويل'),'error'); } finally { hideLoading(); } }
 async function deleteTransfer(id){ if(!canEdit()){showToast('❌ لا توجد صلاحية','error');return;} var tr=TRANSFERS_STATE.records.find(function(x){return x.id===id;}); if(!tr){showToast('❌ غير موجود','error');return;} if(tr.operation_id&&!(await _assertOperationEditable(tr.operation_id))){showToast('❌ العملية مقفلة/منتهية - لا يمكن الحذف','error');return;} var msg=(WORKFLOW_TRANSFER_PURPOSES.indexOf(tr.purpose)!==-1||tr.operation_id)?'⚠️ تحويل مرتبط بسير العمل، حذفه يؤثر على الأرصدة.\nمتأكد؟':'حذف التحويل؟'; if(!confirmAction(msg))return; showLoading(); try{ var old=await runQuery(function(){return APP.supabase.from('transfers').select('*').eq('id',id).single();},{context:'deleteTransfer-getOld',throwError:true}); await runQuery(function(){return APP.supabase.from('transfers').delete().eq('id',id);},{context:'deleteTransfer',throwError:true}); _logT('حذف تحويل','transfer',id,JSON.stringify(old.data),null,'delete'); showToast('✅ تم الحذف','success'); loadTransfers(); refreshRelatedScreens(tr.operation_id); } catch(e){ showToast(handleSupabaseError(e,'حذف التحويل'),'error'); } finally { hideLoading(); } }
 function _logT(a,et,ei,ov,nv,at){ if(typeof window.logActivityToDB==='function')window.logActivityToDB(a,et,ei,ov,nv,a,at); }
@@ -88,5 +105,5 @@ function _getTransVal(id){ var e=document.getElementById(id); return e?e.value:'
 function _setTransVal(id,v){ var e=document.getElementById(id); if(e)e.value=(v!==null&&v!==undefined)?v:''; }
 if(typeof document!=='undefined'){ initTransfers(); }
 // ============================================================
-// END OF TRANSFERS.JS (v6.2.2)
+// END OF TRANSFERS.JS (v6.3.0)
 // ============================================================
