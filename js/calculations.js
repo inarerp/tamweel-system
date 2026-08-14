@@ -1,266 +1,154 @@
 // ============================================================
 // نظام إدارة التمويل - Calculations Module (مشترك)
-// Version: 2.6.0
-// Last Updated: 2026-08-14
+// Version: 2.6.1
+// v2.6.1: تمويل fixed لا يشترط base>0 (_financingCompanyProfit)
+// v2.6.0: فصل Financing/Supply + تاريخ ربح type-aware
 // ============================================================
-// v2.6.0: فصل منطق Financing عن Supply في ربح الشركة:
-//  - Financing: الربح المتفق عليه نهائي من البداية (لا يشترط profit_approval_date)
-//    ويُدرج في فلاتر الأرباح وفق تاريخ العملية (start_date/created_at)
-//  - Supply: يبقى منطق Expected/Approved الحالي كما هو
-//  - مبدأ التحويلات كمصدر وحيد للحركة المالية بدون تغيير
 
-// ============================================================
-// 0. SHARED HELPERS
-// ============================================================
-function _isInvestorFunding(t) { if (t.type) return (t.type === 'investor_to_company'); return (t.purpose === 'capital_funding' || t.purpose === 'client_funding'); }
-function _isClientFunding(t) { if (t.type) return (t.type === 'company_to_client'); return (t.purpose === 'client_funding' || t.purpose === 'additional_funding'); }
-function _isClientRepayment(t) { if (t.type) return (t.type === 'client_to_company'); return (t.purpose === 'client_repayment'); }
-function _isFinancing(op) { return !!op && op.type === 'financing'; }
-function getOperationClientFlows(operationId, data) {
-    var opTransfers = (data.indexes.transfersByOperation && data.indexes.transfersByOperation[operationId]) || [];
-    var clientFunded = 0, clientRepaid = 0;
-    opTransfers.forEach(function(t) {
-        if (_isClientFunding(t)) clientFunded += parseFloat(t.amount || 0);
-        else if (_isClientRepayment(t)) clientRepaid += parseFloat(t.amount || 0);
-    });
-    return { clientFunded: clientFunded, clientRepaid: clientRepaid };
+// ---------- 0. HELPERS ----------
+function _isInvestorFunding(t){ if(t.type) return (t.type==='investor_to_company'); return (t.purpose==='capital_funding'||t.purpose==='client_funding'); }
+function _isClientFunding(t){ if(t.type) return (t.type==='company_to_client'); return (t.purpose==='client_funding'||t.purpose==='additional_funding'); }
+function _isClientRepayment(t){ if(t.type) return (t.type==='client_to_company'); return (t.purpose==='client_repayment'); }
+function _isFinancing(op){ return !!op && op.type==='financing'; }
+function getOperationClientFlows(operationId,data){
+  var ot=(data.indexes.transfersByOperation&&data.indexes.transfersByOperation[operationId])||[];
+  var cf=0,cr=0; ot.forEach(function(t){ if(_isClientFunding(t))cf+=parseFloat(t.amount||0); else if(_isClientRepayment(t))cr+=parseFloat(t.amount||0); });
+  return {clientFunded:cf,clientRepaid:cr};
 }
-// تاريخ الربح المناسب حسب نوع العملية (للفلاتر والعرض)
-function _operationProfitDate(op) {
-    if (_isFinancing(op)) {
-        var d = op.start_date || op.created_at || null;
-        return { date: d ? String(d).slice(0, 10) : null, label: 'تاريخ العملية (تمويل)' };
-    }
-    var d2 = op.profit_approval_date ? String(op.profit_approval_date).slice(0, 10) : null;
-    return { date: d2, label: 'تاريخ اعتماد الربح (توريد)' };
+function _operationProfitDate(op){
+  if(_isFinancing(op)){ var d=op.start_date||op.created_at||null; return {date:d?String(d).slice(0,10):null,label:'تاريخ العملية (تمويل)'}; }
+  var d2=op.profit_approval_date?String(op.profit_approval_date).slice(0,10):null; return {date:d2,label:'تاريخ اعتماد الربح (توريد)'};
+}
+// ربح التمويل مباشرة من بيانات العملية (fixed بدون اشتراط base)
+function _financingCompanyProfit(op){
+  if(!op) return 0;
+  if(op.company_profit_type==='fixed') return parseFloat(op.company_profit_value||0);
+  if(op.company_profit_type==='percentage'){ var b=parseFloat(op.final_profit||0)||parseFloat(op.expected_profit||0); return (b*parseFloat(op.company_profit_value||0))/100; }
+  return 0;
 }
 
-// ============================================================
-// 1. CLIENT CALCULATIONS
-// ============================================================
-function calculateClientSummary(clientId, data) {
-    var ops = (data.indexes.clientOperations && data.indexes.clientOperations[clientId]) || [];
-    if (ops.length === 0 && data.operations) ops = data.operations.filter(function(op) { return op.client_id === clientId; });
-    var activeOps = 0, completedOps = 0, draftOps = 0, totalFunded = 0, totalRepaid = 0, totalApprovedProfit = 0, lastOperation = null;
-    ops.forEach(function(op) {
-        if (op.status === STATUS.ACTIVE) activeOps++;
-        else if (op.status === STATUS.COMPLETED) completedOps++;
-        else if (op.status === STATUS.DRAFT) draftOps++;
-        if (op.final_profit && op.profit_approval_date) totalApprovedProfit += parseFloat(op.final_profit || 0);
-        if (!lastOperation || new Date(op.created_at) > new Date(lastOperation.created_at)) lastOperation = op;
-        var flows = getOperationClientFlows(op.id, data);
-        totalFunded += flows.clientFunded; totalRepaid += flows.clientRepaid;
-    });
-    return { totalOperations: ops.length, activeOperations: activeOps, completedOperations: completedOps, draftOperations: draftOps,
-        totalFunded: totalFunded, totalRepaid: totalRepaid, totalApprovedProfit: totalApprovedProfit, balance: totalRepaid - totalFunded, lastOperation: lastOperation };
+// ---------- 1. CLIENT ----------
+function calculateClientSummary(clientId,data){
+  var ops=(data.indexes.clientOperations&&data.indexes.clientOperations[clientId])||[];
+  if(ops.length===0&&data.operations) ops=data.operations.filter(function(op){return op.client_id===clientId;});
+  var a=0,c=0,dr=0,tf=0,tr=0,tap=0,last=null;
+  ops.forEach(function(op){
+    if(op.status===STATUS.ACTIVE)a++; else if(op.status===STATUS.COMPLETED)c++; else if(op.status===STATUS.DRAFT)dr++;
+    if(op.final_profit&&op.profit_approval_date)tap+=parseFloat(op.final_profit||0);
+    if(!last||new Date(op.created_at)>new Date(last.created_at))last=op;
+    var f=getOperationClientFlows(op.id,data); tf+=f.clientFunded; tr+=f.clientRepaid;
+  });
+  return {totalOperations:ops.length,activeOperations:a,completedOperations:c,draftOperations:dr,totalFunded:tf,totalRepaid:tr,totalApprovedProfit:tap,balance:tr-tf,lastOperation:last};
 }
 
-// ============================================================
-// 2. INVESTOR CALCULATIONS
-// ============================================================
-function calculateInvestorSummary(investorId, data) {
-    var contribs = (data.indexes.opInvestorsByInvestor && data.indexes.opInvestorsByInvestor[investorId]) || [];
-    var myTransfers = (data.indexes.transfersByInvestor && data.indexes.transfersByInvestor[investorId]) || [];
-    var totalCapital = 0, totalProfit = 0, activeOps = 0, totalOps = contribs.length;
-    contribs.forEach(function(c) {
-        totalCapital += parseFloat(c.contribution || 0); totalProfit += parseFloat(c.profit || 0);
-        var op = data.indexes.operationsById ? data.indexes.operationsById[c.operation_id] : null;
-        if (op && op.status === STATUS.ACTIVE) activeOps++;
-    });
-    var fundedCapital = 0, capitalReturned = 0, profitPaid = 0;
-    myTransfers.forEach(function(t) {
-        if (_isInvestorFunding(t)) fundedCapital += parseFloat(t.amount || 0);
-        else if (t.purpose === 'capital_return') capitalReturned += parseFloat(t.amount || 0);
-        else if (t.purpose === 'profit_distribution') profitPaid += parseFloat(t.amount || 0);
-    });
-    var capitalPending = Math.max(0, fundedCapital - capitalReturned);
-    return { totalCapital: totalCapital, committedCapital: totalCapital, fundedCapital: fundedCapital, workingCapital: fundedCapital,
-        capitalReturned: capitalReturned, capitalPending: capitalPending, outstandingCommitment: Math.max(0, totalCapital - fundedCapital),
-        totalProfit: totalProfit, profitPaid: profitPaid, outstandingProfit: Math.max(0, totalProfit - profitPaid),
-        currentBalance: capitalPending + Math.max(0, totalProfit - profitPaid), activeOperations: activeOps, totalOperations: totalOps };
+// ---------- 2. INVESTOR ----------
+function calculateInvestorSummary(investorId,data){
+  var co=(data.indexes.opInvestorsByInvestor&&data.indexes.opInvestorsByInvestor[investorId])||[];
+  var mt=(data.indexes.transfersByInvestor&&data.indexes.transfersByInvestor[investorId])||[];
+  var tc=0,tp=0,act=0;
+  co.forEach(function(x){ tc+=parseFloat(x.contribution||0); tp+=parseFloat(x.profit||0); var op=data.indexes.operationsById?data.indexes.operationsById[x.operation_id]:null; if(op&&op.status===STATUS.ACTIVE)act++; });
+  var fc=0,cr=0,pp=0;
+  mt.forEach(function(t){ if(_isInvestorFunding(t))fc+=parseFloat(t.amount||0); else if(t.purpose==='capital_return')cr+=parseFloat(t.amount||0); else if(t.purpose==='profit_distribution')pp+=parseFloat(t.amount||0); });
+  var pend=Math.max(0,fc-cr);
+  return {totalCapital:tc,committedCapital:tc,fundedCapital:fc,workingCapital:fc,capitalReturned:cr,capitalPending:pend,outstandingCommitment:Math.max(0,tc-fc),totalProfit:tp,profitPaid:pp,outstandingProfit:Math.max(0,tp-pp),currentBalance:pend+Math.max(0,tp-pp),activeOperations:act,totalOperations:co.length};
 }
 
-// ============================================================
-// 3. OPERATION FUNDING
-// ============================================================
-function getOperationFunding(operationId, data) {
-    var op = data.indexes.operationsById ? data.indexes.operationsById[operationId] : null;
-    var opInv = (data.indexes.opInvestorsByOperation && data.indexes.opInvestorsByOperation[operationId]) || [];
-    var opTransfers = (data.indexes.transfersByOperation && data.indexes.transfersByOperation[operationId]) || [];
-    var required = op ? parseFloat(op.amount || 0) : 0;
-    var committed = 0, knownInvestors = {}, perInvestor = [];
-    opInv.forEach(function(oi) {
-        var cCommitted = parseFloat(oi.contribution || 0), cProfit = parseFloat(oi.profit || 0);
-        committed += cCommitted; knownInvestors[oi.investor_id] = true;
-        var funded = 0, returned = 0, profitPaid = 0;
-        opTransfers.forEach(function(t) {
-            if (t.investor_id !== oi.investor_id) return;
-            if (_isInvestorFunding(t)) funded += parseFloat(t.amount || 0);
-            else if (t.purpose === 'capital_return') returned += parseFloat(t.amount || 0);
-            else if (t.purpose === 'profit_distribution') profitPaid += parseFloat(t.amount || 0);
-        });
-        perInvestor.push({ investorId: oi.investor_id, opInvestorId: oi.id, committed: cCommitted, profit: cProfit, funded: funded, returned: returned, profitPaid: profitPaid,
-            remaining: Math.max(0, cCommitted - funded), remainingCapital: Math.max(0, funded - returned), remainingProfit: Math.max(0, cProfit - profitPaid) });
-    });
-    var funded = 0, clientFunded = 0, clientRepayment = 0, capitalReturned = 0, profitDistributed = 0, unmatched = [];
-    opTransfers.forEach(function(t) {
-        var a = parseFloat(t.amount || 0);
-        if (_isInvestorFunding(t)) { funded += a; if (t.investor_id && !knownInvestors[t.investor_id]) unmatched.push({ transferId: t.id, investorId: t.investor_id, amount: a }); }
-        else if (t.type === 'company_to_client') clientFunded += a;
-        else if (t.type === 'client_to_company') clientRepayment += a;
-        else if (t.purpose === 'capital_return') capitalReturned += a;
-        else if (t.purpose === 'profit_distribution') profitDistributed += a;
-    });
-    return { required: required, committed: committed, funded: funded, clientFunded: clientFunded, clientRepayment: clientRepayment, capitalReturned: capitalReturned, profitDistributed: profitDistributed,
-        remainingCommitment: Math.max(0, required - committed), remainingFunding: Math.max(0, required - funded), remainingClientFunding: Math.max(0, required - clientFunded),
-        committedCoverage: required > 0 ? (committed / required) * 100 : 0, fundedCoverage: required > 0 ? (funded / required) * 100 : 0, perInvestor: perInvestor, unmatchedInvestorFunding: unmatched };
+// ---------- 3. OPERATION FUNDING ----------
+function getOperationFunding(operationId,data){
+  var op=data.indexes.operationsById?data.indexes.operationsById[operationId]:null;
+  var oi=(data.indexes.opInvestorsByOperation&&data.indexes.opInvestorsByOperation[operationId])||[];
+  var ot=(data.indexes.transfersByOperation&&data.indexes.transfersByOperation[operationId])||[];
+  var req=op?parseFloat(op.amount||0):0, com=0, known={}, per=[];
+  oi.forEach(function(x){ var cc=parseFloat(x.contribution||0),cp=parseFloat(x.profit||0); com+=cc; known[x.investor_id]=true;
+    var f=0,r=0,p=0; ot.forEach(function(t){ if(t.investor_id!==x.investor_id)return; if(_isInvestorFunding(t))f+=parseFloat(t.amount||0); else if(t.purpose==='capital_return')r+=parseFloat(t.amount||0); else if(t.purpose==='profit_distribution')p+=parseFloat(t.amount||0); });
+    per.push({investorId:x.investor_id,opInvestorId:x.id,committed:cc,profit:cp,funded:f,returned:r,profitPaid:p,remaining:Math.max(0,cc-f),remainingCapital:Math.max(0,f-r),remainingProfit:Math.max(0,cp-p)}); });
+  var f=0,cf=0,cr=0,crtn=0,pd=0,un=[];
+  ot.forEach(function(t){ var a=parseFloat(t.amount||0);
+    if(_isInvestorFunding(t)){ f+=a; if(t.investor_id&&!known[t.investor_id])un.push({transferId:t.id,investorId:t.investor_id,amount:a}); }
+    else if(t.type==='company_to_client')cf+=a; else if(t.type==='client_to_company')cr+=a; else if(t.purpose==='capital_return')crtn+=a; else if(t.purpose==='profit_distribution')pd+=a; });
+  return {required:req,committed:com,funded:f,clientFunded:cf,clientRepayment:cr,capitalReturned:crtn,profitDistributed:pd,
+    remainingCommitment:Math.max(0,req-com),remainingFunding:Math.max(0,req-f),remainingClientFunding:Math.max(0,req-cf),
+    committedCoverage:req>0?(com/req)*100:0,fundedCoverage:req>0?(f/req)*100:0,perInvestor:per,unmatchedInvestorFunding:un};
 }
 
-// ============================================================
-// 4. OPERATION PROFITS (Financing vs Supply)
-// ============================================================
-function getOperationProfits(operationId, data) {
-    var op = data.indexes.operationsById ? data.indexes.operationsById[operationId] : null;
-    if (!op) return null;
-    var f = getOperationFunding(operationId, data);
-    var opInv = (data.indexes.opInvestorsByOperation && data.indexes.opInvestorsByOperation[operationId]) || [];
-    var investorEntitlement = 0; opInv.forEach(function(oi) { investorEntitlement += parseFloat(oi.profit || 0); });
-    var expectedTotal = parseFloat(op.expected_profit || 0);
-    var approvedTotal;
-    if (_isFinancing(op)) {
-        // التمويل: الربح المتفق عليه نهائي من البداية (لا يشترط اعتماد)
-        approvedTotal = parseFloat(op.final_profit || 0) || expectedTotal;
-    } else {
-        // التوريد: يبقى المنطق الحالي
-        approvedTotal = (op.final_profit && op.profit_approval_date) ? parseFloat(op.final_profit || 0) : 0;
-    }
-    var companyExpected = _companyShare(op, expectedTotal);
-    var companyApproved = _companyShare(op, approvedTotal);
-    var totalProfitCollected = Math.max(0, f.clientRepayment - f.clientFunded);
-    var netProfit = Math.max(0, totalProfitCollected - f.profitDistributed);
-    var clientDueTotal = f.required + approvedTotal;
-    var pd = _operationProfitDate(op);
-    return { expectedTotal: expectedTotal, approvedTotal: approvedTotal, companyExpected: companyExpected, companyApproved: companyApproved,
-        investorEntitlement: investorEntitlement, investorDistributed: f.profitDistributed, investorRemaining: Math.max(0, investorEntitlement - f.profitDistributed),
-        capitalReturned: f.capitalReturned, clientRepayment: f.clientRepayment, clientFunded: f.clientFunded,
-        totalProfitCollected: totalProfitCollected, netProfit: netProfit, clientDueTotal: clientDueTotal, clientOutstanding: Math.max(0, clientDueTotal - f.clientRepayment),
-        profitAllocatedTotal: investorEntitlement + companyApproved, profitReconciliationDifference: (investorEntitlement + companyApproved) - approvedTotal,
-        profitReconciled: (approvedTotal > 0) ? Math.abs((investorEntitlement + companyApproved) - approvedTotal) < 0.01 : true,
-        profitDate: pd.date, profitDateLabel: pd.label, opType: op.type };
+// ---------- 4. OPERATION PROFITS (Financing vs Supply) ----------
+function getOperationProfits(operationId,data){
+  var op=data.indexes.operationsById?data.indexes.operationsById[operationId]:null; if(!op)return null;
+  var f=getOperationFunding(operationId,data);
+  var oi=(data.indexes.opInvestorsByOperation&&data.indexes.opInvestorsByOperation[operationId])||[];
+  var ent=0; oi.forEach(function(x){ent+=parseFloat(x.profit||0);});
+  var exp=parseFloat(op.expected_profit||0);
+  var approved, cExp, cApp;
+  if(_isFinancing(op)){
+    approved=parseFloat(op.final_profit||0)||exp;
+    cApp=_financingCompanyProfit(op); cExp=cApp;
+  } else {
+    approved=(op.final_profit&&op.profit_approval_date)?parseFloat(op.final_profit||0):0;
+    cExp=_companyShare(op,exp); cApp=_companyShare(op,approved);
+  }
+  var collected=Math.max(0,f.clientRepayment-f.clientFunded);
+  var net=Math.max(0,collected-f.profitDistributed);
+  var due=f.required+approved;
+  var pdt=_operationProfitDate(op);
+  return {expectedTotal:exp,approvedTotal:approved,companyExpected:cExp,companyApproved:cApp,investorEntitlement:ent,investorDistributed:f.profitDistributed,investorRemaining:Math.max(0,ent-f.profitDistributed),
+    capitalReturned:f.capitalReturned,clientRepayment:f.clientRepayment,clientFunded:f.clientFunded,totalProfitCollected:collected,netProfit:net,
+    clientDueTotal:due,clientOutstanding:Math.max(0,due-f.clientRepayment),profitAllocatedTotal:ent+cApp,profitReconciliationDifference:(ent+cApp)-approved,
+    profitReconciled:(approved>0)?Math.abs((ent+cApp)-approved)<0.01:true,profitDate:pdt.date,profitDateLabel:pdt.label,opType:op.type};
 }
-function _companyShare(op, profitBase) {
-    var base = parseFloat(profitBase || 0);
-    if (!base || !op) return 0;
-    if (op.company_profit_type === 'percentage') return (base * parseFloat(op.company_profit_value || 0)) / 100;
-    if (op.company_profit_type === 'fixed') return parseFloat(op.company_profit_value || 0);
-    return 0;
-}
-function getCoverage(operationId, data) { var f = getOperationFunding(operationId, data); return { required: f.required, committed: f.committed, funded: f.funded, remainingCommitment: f.remainingCommitment, remainingFunding: f.remainingFunding, remainingClientFunding: f.remainingClientFunding, committedCoverage: f.committedCoverage, fundedCoverage: f.fundedCoverage }; }
+function _companyShare(op,base){ base=parseFloat(base||0); if(!base||!op)return 0;
+  if(op.company_profit_type==='percentage')return (base*parseFloat(op.company_profit_value||0))/100;
+  if(op.company_profit_type==='fixed')return parseFloat(op.company_profit_value||0); return 0; }
+function getCoverage(id,data){ var f=getOperationFunding(id,data); return {required:f.required,committed:f.committed,funded:f.funded,remainingCommitment:f.remainingCommitment,remainingFunding:f.remainingFunding,remainingClientFunding:f.remainingClientFunding,committedCoverage:f.committedCoverage,fundedCoverage:f.fundedCoverage}; }
+
+// ---------- 5. OPERATION SUMMARY ----------
+function calculateOperationSummary(id,data){ var op=data.indexes.operationsById?data.indexes.operationsById[id]:null; if(!op)return null;
+  var f=getOperationFunding(id,data),p=getOperationProfits(id,data);
+  return {investorCount:f.perInvestor.length,totalInvested:f.committed,totalInvestorProfit:p.investorEntitlement,companyProfit:p.companyApproved,clientRepaid:f.clientRepayment,capitalReturned:p.capitalReturned,distributedProfit:p.investorDistributed,remainingProfit:p.investorRemaining,operation:op,committedCapital:f.committed,fundedCapital:f.funded,clientFunded:f.clientFunded,expectedCompanyProfit:p.companyExpected,realizedCompanyProfit:p.netProfit,coverage:{committedCoverage:f.committedCoverage,fundedCoverage:f.fundedCoverage}}; }
+
+// ---------- 6. STATEMENT ----------
+function buildStatement(transfers,indexes,type){ var st=[];
+  transfers.forEach(function(t){ var op=indexes.operationsById?indexes.operationsById[t.operation_id]:null; var inv=indexes.investorsById?indexes.investorsById[t.investor_id]:null;
+    var inc=false,cr=false;
+    if(type==='client'){ inc=_isClientFunding(t)||_isClientRepayment(t); cr=_isClientRepayment(t); }
+    else if(type==='investor'){ inc=_isInvestorFunding(t)||t.purpose==='capital_return'||t.purpose==='profit_distribution'; cr=(t.purpose==='capital_return'||t.purpose==='profit_distribution'); }
+    if(!inc)return;
+    st.push({date:t.transfer_date,reference:t.reference_number||'-',type:(typeof getTransferTypeText==='function')?getTransferTypeText(t.type):(t.type||'-'),purpose:(typeof getPurposeText==='function')?getPurposeText(t.purpose):(t.purpose||'-'),operation:op?op.name:'-',operationId:t.operation_id,investor:inv?inv.name:'-',investorId:t.investor_id,amount:parseFloat(t.amount||0),isCredit:cr,notes:t.notes||'-',created_at:t.created_at}); });
+  st.sort(function(a,b){return new Date(a.date||a.created_at)-new Date(b.date||b.created_at);});
+  var rb=0; st.forEach(function(i){rb+=i.isCredit?i.amount:-i.amount;i.runningBalance=rb;}); st.reverse(); return st; }
+
+// ---------- 7. COMPANY ENGINE ----------
+function _companyFlowSide(t){ if(t.type){ if(t.type==='investor_to_company')return'in_investor'; if(t.type==='client_to_company')return'in_client'; if(t.type==='company_to_client')return'out_client'; if(t.type==='company_to_investor')return'out_investor'; return null; }
+  if(_isInvestorFunding(t))return'in_investor'; if(_isClientRepayment(t))return'in_client'; if(_isClientFunding(t))return'out_client'; if(t.purpose==='capital_return'||t.purpose==='profit_distribution')return'out_investor'; return null; }
+function getCompanyBalance(data){ var tr=data.transfers||[],fi=0,fc=0,tc=0,tcr=0,tpr=0;
+  tr.forEach(function(t){ var a=parseFloat(t.amount||0),s=_companyFlowSide(t); if(s==='in_investor')fi+=a; else if(s==='in_client')fc+=a; else if(s==='out_client')tc+=a; else if(s==='out_investor'){ if(t.purpose==='profit_distribution')tpr+=a; else tcr+=a; } });
+  var ci=fi+fc,co=tc+tcr+tpr;
+  return {companyCashBalance:ci-co,cashIn:ci,cashOut:co,cashReceivedFromInvestors:fi,cashCollectedFromClients:fc,cashPaidToClients:tc,cashReturnedToInvestors:tcr,cashProfitPaidToInvestors:tpr}; }
+function calculateCompanySummary(data){ var b=getCompanyBalance(data),ops=data.operations||[];
+  var tCF=0,tCR=0,tIF=0,tICR=0,tIPE=0,tIPD=0,tCE=0,tCA=0,tCRP=0,tO=ops.length,aO=0,cO=0,dO=0,aOV=0;
+  ops.forEach(function(op){ if(op.status===STATUS.ACTIVE){aO++;aOV+=parseFloat(op.amount||0);} else if(op.status===STATUS.COMPLETED)cO++; else if(op.status===STATUS.DRAFT)dO++;
+    var f=getOperationFunding(op.id,data),p=getOperationProfits(op.id,data);
+    tCF+=f.clientFunded;tCR+=f.clientRepayment;tIF+=f.funded;tICR+=f.capitalReturned;
+    if(p){tIPE+=p.investorEntitlement;tIPD+=p.investorDistributed;tCE+=p.companyExpected;tCA+=p.companyApproved;tCRP+=p.netProfit;} });
+  return {companyCashBalance:b.companyCashBalance,cashIn:b.cashIn,cashOut:b.cashOut,totalClientFunded:tCF,totalClientRepaid:tCR,clientOutstandingCash:tCF-tCR,
+    totalInvestorFunded:tIF,totalInvestorCapitalReturned:tICR,outstandingInvestorCapital:Math.max(0,tIF-tICR),totalInvestorProfitEntitlement:tIPE,totalInvestorProfitDistributed:tIPD,outstandingInvestorProfit:Math.max(0,tIPE-tIPD),
+    totalCompanyExpectedProfit:tCE,totalCompanyApprovedProfit:tCA,totalCompanyRealizedProfit:tCRP,totalCashPaidToClients:b.cashPaidToClients,totalCashCollectedFromClients:b.cashCollectedFromClients,
+    totalCashReceivedFromInvestors:b.cashReceivedFromInvestors,totalCashReturnedToInvestors:b.cashReturnedToInvestors,totalProfitPaidToInvestors:b.cashProfitPaidToInvestors,
+    totalOperations:tO,activeOperations:aO,completedOperations:cO,draftOperations:dO,activeOperationsValue:aOV}; }
+function getOperationCompanySummary(id,data){ var op=data.indexes.operationsById?data.indexes.operationsById[id]:null; if(!op)return null;
+  var f=getOperationFunding(id,data),p=getOperationProfits(id,data),fl=getOperationClientFlows(id,data);
+  return {operationValue:parseFloat(op.amount||0),investorFunded:f.funded,clientFunded:fl.clientFunded,clientRepaid:fl.clientRepaid,investorCapitalReturned:f.capitalReturned,investorProfitDistributed:p.investorDistributed,
+    companyExpectedProfit:p.companyExpected,companyApprovedProfit:p.companyApproved,companyRealizedProfit:p.netProfit,outstandingInvestorCapital:Math.max(0,f.funded-f.capitalReturned),outstandingInvestorProfit:p.investorRemaining,
+    clientOutstandingCash:fl.clientFunded-fl.clientRepaid,companyCashImpact:(f.funded+fl.clientRepaid)-(fl.clientFunded+f.capitalReturned+p.investorDistributed)}; }
+
+// ---------- 8. COMPANY PROFIT FOR PERIOD ----------
+function getCompanyProfitForPeriod(data,from,to){ var ops=data.operations||[],ta=0,ae=0,rows=[];
+  ops.forEach(function(op){ var p=getOperationProfits(op.id,data); if(!p)return; ae+=p.companyExpected;
+    var d=p.profitDate; var inP=!!d&&(!from||d>=from)&&(!to||d<=to);
+    if(inP){ ta+=p.companyApproved; var cl=(data.indexes&&data.indexes.clientsById)?data.indexes.clientsById[op.client_id]:null;
+      rows.push({operationId:op.id,reference:op.reference_number||'-',name:op.name||'-',clientName:cl?cl.name:'-',totalOperationProfit:p.approvedTotal,companyShare:p.companyApproved,approvalDate:d,profitDate:d,profitDateLabel:p.profitDateLabel,opType:op.type}); } });
+  rows.sort(function(a,b){return (a.profitDate||'').localeCompare(b.profitDate||'');});
+  return {from:from||null,to:to||null,totalCompanyApprovedProfit:ta,allTimeExpectedProfit:ae,operations:rows}; }
 
 // ============================================================
-// 5. OPERATION SUMMARY
-// ============================================================
-function calculateOperationSummary(operationId, data) {
-    var op = data.indexes.operationsById ? data.indexes.operationsById[operationId] : null;
-    if (!op) return null;
-    var f = getOperationFunding(operationId, data); var p = getOperationProfits(operationId, data);
-    return { investorCount: f.perInvestor.length, totalInvested: f.committed, totalInvestorProfit: p.investorEntitlement, companyProfit: p.companyApproved,
-        clientRepaid: f.clientRepayment, capitalReturned: p.capitalReturned, distributedProfit: p.investorDistributed, remainingProfit: p.investorRemaining, operation: op,
-        committedCapital: f.committed, fundedCapital: f.funded, clientFunded: f.clientFunded, expectedCompanyProfit: p.companyExpected, realizedCompanyProfit: p.netProfit,
-        coverage: { committedCoverage: f.committedCoverage, fundedCoverage: f.fundedCoverage } };
-}
-
-// ============================================================
-// 6. STATEMENT BUILDER
-// ============================================================
-function buildStatement(transfers, indexes, type) {
-    var statement = [];
-    transfers.forEach(function(t) {
-        var op = indexes.operationsById ? indexes.operationsById[t.operation_id] : null;
-        var inv = indexes.investorsById ? indexes.investorsById[t.investor_id] : null;
-        var include = false, isCredit = false;
-        if (type === 'client') { include = _isClientFunding(t) || _isClientRepayment(t); isCredit = _isClientRepayment(t); }
-        else if (type === 'investor') { include = _isInvestorFunding(t) || t.purpose === 'capital_return' || t.purpose === 'profit_distribution'; isCredit = (t.purpose === 'capital_return' || t.purpose === 'profit_distribution'); }
-        if (!include) return;
-        statement.push({ date: t.transfer_date, reference: t.reference_number || '-', type: (typeof getTransferTypeText === 'function') ? getTransferTypeText(t.type) : (t.type || '-'),
-            purpose: (typeof getPurposeText === 'function') ? getPurposeText(t.purpose) : (t.purpose || '-'), operation: op ? op.name : '-', operationId: t.operation_id,
-            investor: inv ? inv.name : '-', investorId: t.investor_id, amount: parseFloat(t.amount || 0), isCredit: isCredit, notes: t.notes || '-', created_at: t.created_at });
-    });
-    statement.sort(function(a, b) { return new Date(a.date || a.created_at) - new Date(b.date || b.created_at); });
-    var rb = 0; statement.forEach(function(i) { rb += i.isCredit ? i.amount : -i.amount; i.runningBalance = rb; });
-    statement.reverse(); return statement;
-}
-
-// ============================================================
-// 7. COMPANY ENGINE
-// ============================================================
-function _companyFlowSide(t) {
-    if (t.type) { if (t.type === 'investor_to_company') return 'in_investor'; if (t.type === 'client_to_company') return 'in_client'; if (t.type === 'company_to_client') return 'out_client'; if (t.type === 'company_to_investor') return 'out_investor'; return null; }
-    if (_isInvestorFunding(t)) return 'in_investor'; if (_isClientRepayment(t)) return 'in_client'; if (_isClientFunding(t)) return 'out_client';
-    if (t.purpose === 'capital_return' || t.purpose === 'profit_distribution') return 'out_investor'; return null;
-}
-function getCompanyBalance(data) {
-    var tr = data.transfers || [];
-    var fi = 0, fc = 0, tc = 0, tcr = 0, tpr = 0;
-    tr.forEach(function(t) { var a = parseFloat(t.amount || 0); var s = _companyFlowSide(t);
-        if (s === 'in_investor') fi += a; else if (s === 'in_client') fc += a; else if (s === 'out_client') tc += a;
-        else if (s === 'out_investor') { if (t.purpose === 'profit_distribution') tpr += a; else tcr += a; } });
-    var cashIn = fi + fc, cashOut = tc + tcr + tpr;
-    return { companyCashBalance: cashIn - cashOut, cashIn: cashIn, cashOut: cashOut, cashReceivedFromInvestors: fi, cashCollectedFromClients: fc, cashPaidToClients: tc, cashReturnedToInvestors: tcr, cashProfitPaidToInvestors: tpr };
-}
-function calculateCompanySummary(data) {
-    var b = getCompanyBalance(data); var ops = data.operations || [];
-    var tCF = 0, tCR = 0, tIF = 0, tICR = 0, tIPE = 0, tIPD = 0, tCE = 0, tCA = 0, tCRP = 0;
-    var totalOperations = ops.length, activeOperations = 0, completedOperations = 0, draftOperations = 0, activeOperationsValue = 0;
-    ops.forEach(function(op) {
-        if (op.status === STATUS.ACTIVE) { activeOperations++; activeOperationsValue += parseFloat(op.amount || 0); }
-        else if (op.status === STATUS.COMPLETED) completedOperations++; else if (op.status === STATUS.DRAFT) draftOperations++;
-        var f = getOperationFunding(op.id, data); var p = getOperationProfits(op.id, data);
-        tCF += f.clientFunded; tCR += f.clientRepayment; tIF += f.funded; tICR += f.capitalReturned;
-        if (p) { tIPE += p.investorEntitlement; tIPD += p.investorDistributed; tCE += p.companyExpected; tCA += p.companyApproved; tCRP += p.netProfit; }
-    });
-    return { companyCashBalance: b.companyCashBalance, cashIn: b.cashIn, cashOut: b.cashOut,
-        totalClientFunded: tCF, totalClientRepaid: tCR, clientOutstandingCash: tCF - tCR,
-        totalInvestorFunded: tIF, totalInvestorCapitalReturned: tICR, outstandingInvestorCapital: Math.max(0, tIF - tICR),
-        totalInvestorProfitEntitlement: tIPE, totalInvestorProfitDistributed: tIPD, outstandingInvestorProfit: Math.max(0, tIPE - tIPD),
-        totalCompanyExpectedProfit: tCE, totalCompanyApprovedProfit: tCA, totalCompanyRealizedProfit: tCRP,
-        totalCashPaidToClients: b.cashPaidToClients, totalCashCollectedFromClients: b.cashCollectedFromClients, totalCashReceivedFromInvestors: b.cashReceivedFromInvestors,
-        totalCashReturnedToInvestors: b.cashReturnedToInvestors, totalProfitPaidToInvestors: b.cashProfitPaidToInvestors,
-        totalOperations: totalOperations, activeOperations: activeOperations, completedOperations: completedOperations, draftOperations: draftOperations, activeOperationsValue: activeOperationsValue };
-}
-function getOperationCompanySummary(operationId, data) {
-    var op = data.indexes.operationsById ? data.indexes.operationsById[operationId] : null;
-    if (!op) return null;
-    var f = getOperationFunding(operationId, data); var p = getOperationProfits(operationId, data); var fl = getOperationClientFlows(operationId, data);
-    return { operationValue: parseFloat(op.amount || 0), investorFunded: f.funded, clientFunded: fl.clientFunded, clientRepaid: fl.clientRepaid,
-        investorCapitalReturned: f.capitalReturned, investorProfitDistributed: p.investorDistributed, companyExpectedProfit: p.companyExpected, companyApprovedProfit: p.companyApproved,
-        companyRealizedProfit: p.netProfit, outstandingInvestorCapital: Math.max(0, f.funded - f.capitalReturned), outstandingInvestorProfit: p.investorRemaining,
-        clientOutstandingCash: fl.clientFunded - fl.clientRepaid,
-        companyCashImpact: (f.funded + fl.clientRepaid) - (fl.clientFunded + f.capitalReturned + p.investorDistributed) };
-}
-
-// ============================================================
-// 8. COMPANY PROFIT FOR PERIOD (type-aware)
-// ============================================================
-function getCompanyProfitForPeriod(data, from, to) {
-    var ops = data.operations || [];
-    var totalApproved = 0, allTimeExpected = 0, rows = [];
-    ops.forEach(function(op) {
-        var p = getOperationProfits(op.id, data); if (!p) return;
-        allTimeExpected += p.companyExpected;
-        var d = p.profitDate; // تمويل: تاريخ العملية / توريد: تاريخ الاعتماد
-        var inPeriod = !!d && (!from || d >= from) && (!to || d <= to);
-        if (inPeriod) {
-            totalApproved += p.companyApproved;
-            var client = (data.indexes && data.indexes.clientsById) ? data.indexes.clientsById[op.client_id] : null;
-            rows.push({ operationId: op.id, reference: op.reference_number || '-', name: op.name || '-', clientName: client ? client.name : '-',
-                totalOperationProfit: p.approvedTotal, companyShare: p.companyApproved, approvalDate: d, profitDate: d, profitDateLabel: p.profitDateLabel, opType: op.type });
-        }
-    });
-    rows.sort(function(a, b) { return (a.profitDate || '').localeCompare(b.profitDate || ''); });
-    return { from: from || null, to: to || null, totalCompanyApprovedProfit: totalApproved, allTimeExpectedProfit: allTimeExpected, operations: rows };
-}
-
-// ============================================================
-// END OF CALCULATIONS.JS (v2.6.0)
+// END OF CALCULATIONS.JS (v2.6.1)
 // ============================================================
