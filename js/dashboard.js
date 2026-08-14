@@ -1,8 +1,9 @@
 // ============================================================
 // نظام إدارة التمويل - Dashboard Module
-// Version: 2.0.3
+// Version: 2.0.4
 // Last Updated: 2026-08-15
 // ============================================================
+// v2.0.4: بطاقة "تنتهي قريبًا" في renderDashboardStats تستخدم DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
 // v2.0.3: تغيير عتبة تنبيه "تستحق قريبًا" إلى 5 أيام (DUE_SOON_DAYS)
 // v2.0.2: إضافة bootstrap لتحميل شاشة الشركة (company.js + company.css)
 // v2.0.1: استخدام getOperationClientFlows بدل op.amount لرأس المال المستحق
@@ -298,14 +299,15 @@ function renderDashboardAlerts(data) {
 
 function renderDashboardStats(data) {
     var today = new Date().toISOString().split('T')[0];
-    var next30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // ✅ v2.0.4: بطاقة "تنتهي قريبًا" تستخدم DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
+    var dueSoonDate = new Date(Date.now() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     var totalActiveFunding = 0, endingSoon = 0, overdue = 0, completed = 0, draft = 0;
     var totalOutstandingInvestorProfit = 0, totalOutstandingCapital = 0;
 
     data.operations.forEach(function(op) {
         if (op.status === STATUS.ACTIVE) {
             totalActiveFunding += parseFloat(op.amount || 0);
-            if (op.end_date && op.end_date <= next30Days && op.end_date >= today) endingSoon++;
+            if (op.end_date && op.end_date <= dueSoonDate && op.end_date >= today) endingSoon++;
             if (op.end_date && op.end_date < today) overdue++;
             var summary = calculateOperationSummary(op.id, data);
             if (summary) {
@@ -350,5 +352,5 @@ function renderDashboardStats(data) {
     document.body.appendChild(s);
 })();
 // ============================================================
-// END OF DASHBOARD.JS (v2.0.3)
+// END OF DASHBOARD.JS (v2.0.4)
 // ============================================================
