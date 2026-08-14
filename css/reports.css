@@ -1,0 +1,182 @@
+/* ============================================================
+   نظام إدارة التمويل - Reports Screen Styles
+   Version: 1.0.0
+   RTL + Mobile friendly — بسيط وواضح
+   ============================================================ */
+
+.reports-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.reports-tab {
+    padding: 10px 18px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #334155;
+    transition: all .2s;
+}
+
+.reports-tab:hover {
+    background: #f1f5f9;
+}
+
+.reports-tab.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+}
+
+.reports-body {
+    padding: 4px 0;
+}
+
+/* بطاقات ملخص الشركة */
+.reports-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.reports-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.reports-card-title {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.reports-card-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.reports-card.blue .reports-card-value { color: #2563eb; }
+.reports-card.green .reports-card-value { color: #16a34a; }
+.reports-card.orange .reports-card-value { color: #ea580c; }
+
+/* فلاتر الفترة */
+.reports-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.reports-period-btn {
+    padding: 8px 14px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #334155;
+    transition: all .2s;
+}
+
+.reports-period-btn:hover {
+    background: #f1f5f9;
+}
+
+.reports-period-btn.active {
+    background: #0f172a;
+    color: #fff;
+    border-color: #0f172a;
+}
+
+.reports-filter-custom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.reports-filter-custom label {
+    font-size: 13px;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reports-filter-custom input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.reports-summary-line {
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    color: #334155;
+}
+
+/* الجداول */
+.reports-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    font-size: 13px;
+}
+
+.reports-table thead th {
+    text-align: right;
+    padding: 10px 12px;
+    background: #f1f5f9;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.reports-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #0f172a;
+}
+
+.reports-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+    .reports-tab {
+        flex: 1 1 auto;
+        text-align: center;
+        padding: 10px 8px;
+    }
+
+    .reports-cards {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .reports-card-value {
+        font-size: 17px;
+    }
+
+    .reports-table {
+        font-size: 12px;
+    }
+
+    .reports-table thead th,
+    .reports-table tbody td {
+        padding: 8px 8px;
+    }
+}
