@@ -1,7 +1,7 @@
 // ============================================================
 // نظام إدارة التمويل - Operations Module (Operation Control Center)
-// Version: 10.3.3
-// v10.3.3: P1 - canEdit guard كأول سطر في opActivate و opComplete
+// Version: 10.4.0
+// v10.4.0: P2-3 - منع حذف ممول له تمويل مستلم (funded>0)
 // ============================================================
 var OPERATIONS_STATE={search:'',filter:'',records:[],referenceCache:{clients:null,investors:null},currentOperationId:null,currentOperation:null,currentCalcData:null,currentFunding:null,currentProfits:null,currentFinancials:null};
 function initOperations(){ registerScreenLoader('operations',loadOperations); }
@@ -66,13 +66,24 @@ async function saveOpInvestor(form,event){ if(event)event.preventDefault(); if(!
  showLoading(); try{ var r=await runQuery(function(){return APP.supabase.from('operation_investors').insert({operation_id:opId,investor_id:inv,contribution:con,profit:pr}).select();},{context:'saveOpInvestor',throwError:true}); _log('إضافة ممول','operation_investor',r.data[0].id,null,JSON.stringify({investor_id:inv,contribution:con}),'create'); closeModal('addInvestorToOpModal'); showToast('✅ تم إضافة الممول','success'); _openDynamicModal('استلام المساهمة','<p>هل تم استلام '+formatMoney(con)+'؟</p><div style="display:flex;gap:10px;"><button type="button" class="btn btn-success btn-block" data-action="opReceiveContribution" data-param="'+inv+'">💸 نعم</button><button type="button" class="btn btn-secondary btn-block" data-action="closeModal" data-modal="opDynamicModal">لاحقاً</button></div>',null,null); await openOperationDetails(opId); } catch(e){ showToast(handleSupabaseError(e,'إضافة الممول'),'error'); } finally { hideLoading(); } }
 async function openEditOpInvestor(recId){ if(!canEdit()){showToast('❌ لا توجد صلاحية','error');return;} var op=OPERATIONS_STATE.currentOperation; if(op&&(op.is_locked||op.status==='completed'||op.status==='cancelled')){showToast('❌ مقفلة/منتهية','error');return;} var r=await runQuery(function(){return APP.supabase.from('operation_investors').select('*').eq('id',recId).single();},{context:'editOpInvestor',throwError:true}); var rec=r.data; if(!rec){showToast('❌ غير موجود','error');return;} _setVal('editOpInvestorId',rec.id); _setVal('editOpInvestorContribution',rec.contribution); _setVal('editOpInvestorProfit',rec.profit); openModal('editOpInvestorModal'); }
 async function updateOpInvestor(form,event){ if(event)event.preventDefault(); if(!canEdit()){showToast('❌ لا توجد صلاحية','error');return;} var recId=_getVal('editOpInvestorId'),con=parseFloat(_getVal('editOpInvestorContribution'))||0,pr=parseFloat(_getVal('editOpInvestorProfit'))||0; if(!recId||con<=0){showToast('❌ بيانات غير صحيحة','error');return;} var op=OPERATIONS_STATE.currentOperation; if(op&&(op.is_locked||op.status==='completed'||op.status==='cancelled')){showToast('❌ مقفلة/منتهية','error');return;} var f=OPERATIONS_STATE.currentFunding; var pi=null; f.perInvestor.forEach(function(x){if(x.opInvestorId===recId)pi=x;}); if(pi&&con<pi.funded-0.01){showToast('❌ لا يمكن خفض التعهد تحت المستلم','error');return;} showLoading(); try{ await runQuery(function(){return APP.supabase.from('operation_investors').update({contribution:con,profit:pr}).eq('id',recId);},{context:'updateOpInvestor',throwError:true}); _log('تعديل مساهمة','operation_investor',recId,null,JSON.stringify({contribution:con,profit:pr}),'update'); closeModal('editOpInvestorModal'); showToast('✅ تم التحديث','success'); await openOperationDetails(OPERATIONS_STATE.currentOperationId); } catch(e){ showToast(handleSupabaseError(e,'تحديث المساهمة'),'error'); } finally { hideLoading(); } }
-async function deleteOpInvestor(recId){ if(!canEdit()){showToast('❌ لا توجد صلاحية','error');return;} var op=OPERATIONS_STATE.currentOperation; if(op&&(op.is_locked||op.status==='completed'||op.status==='cancelled')){showToast('❌ مقفلة/منتهية','error');return;} if(!confirmDelete('هذا الممول'))return; showLoading(); try{ await runQuery(function(){return APP.supabase.from('operation_investors').delete().eq('id',recId);},{context:'delOpInvestor',throwError:true}); _log('حذف ممول','operation_investor',recId,null,null,'delete'); showToast('✅ تم الحذف','success'); await openOperationDetails(OPERATIONS_STATE.currentOperationId); } catch(e){ showToast(handleSupabaseError(e,'حذف الممول'),'error'); } finally { hideLoading(); } }
+
+// ✅ P2-3: منع الحذف عند وجود تمويل مستلم (funded>0.01)
+async function deleteOpInvestor(recId){
+ if(!canEdit()){showToast('❌ لا توجد صلاحية','error');return;}
+ var recR=await runQuery(function(){return APP.supabase.from('operation_investors').select('*').eq('id',recId).single();},{context:'delOpInvestor-rec',throwError:true});
+ var rec=recR.data; if(!rec){showToast('❌ السجل غير موجود','error');return;}
+ var cd=await _buildCalcData(rec.operation_id);
+ var op=cd.operations[0]||null;
+ if(op&&(op.is_locked||op.status==='completed'||op.status==='cancelled')){showToast('❌ العملية مقفلة/منتهية','error');return;}
+ var f=getOperationFunding(rec.operation_id,cd);
+ var pi=null; f.perInvestor.forEach(function(x){if(x.investorId===rec.investor_id)pi=x;});
+ if(pi&&pi.funded>0.01){ showToast('❌ لا يمكن حذف الممول بعد استلام أي مساهمة. يوجد تمويل مستلم بالفعل.','error'); return; }
+ if(!confirmDelete('هذا الممول'))return;
+ showLoading(); try{ await runQuery(function(){return APP.supabase.from('operation_investors').delete().eq('id',recId);},{context:'delOpInvestor',throwError:true}); _log('حذف ممول','operation_investor',recId,null,null,'delete'); showToast('✅ تم الحذف','success'); await openOperationDetails(OPERATIONS_STATE.currentOperationId); } catch(e){ showToast(handleSupabaseError(e,'حذف الممول'),'error'); } finally { hideLoading(); } }
 
 async function opReceiveContribution(invId){
  if(!canEdit()){ showToast('❌ لا توجد صلاحية','error'); return; }
  var opId=OPERATIONS_STATE.currentOperationId,op=OPERATIONS_STATE.currentOperation; if(!op){showToast('❌ افتح العملية','error');return;} if(op.is_locked){showToast('❌ مقفلة','error');return;} if(op.status!=='draft'&&op.status!=='active'){showToast('❌ الحالة لا تسمح','error');return;} var f=OPERATIONS_STATE.currentFunding; var pi=null; f.perInvestor.forEach(function(x){if(x.investorId===invId)pi=x;}); if(!pi){showToast('❌ غير مرتبط','error');return;} if(pi.remaining<=0){showToast('✅ مستلم بالكامل','success');return;} if(!confirmAction('💸 استلام '+formatMoney(pi.remaining)+'؟'))return; showLoading(); try{ await _createTransfer({type:'investor_to_company',purpose:'capital_funding',operation_id:opId,investor_id:invId,client_id:null,amount:pi.remaining,transfer_date:getTodayDate(),notes:'استلام مساهمة - '+op.name},'استلام مساهمة'); closeModal('opDynamicModal'); showToast('✅ تم الاستلام','success'); await openOperationDetails(opId); } catch(e){ showToast(handleSupabaseError(e,'الاستلام'),'error'); } finally { hideLoading(); } }
-
-// ✅ v10.3.3: canEdit guard كأول سطر
 async function opActivate(){
  if(!canEdit()){ showToast('❌ لا توجد صلاحية','error'); return; }
  var opId=OPERATIONS_STATE.currentOperationId,op=OPERATIONS_STATE.currentOperation; if(!op){showToast('❌ افتح العملية','error');return;} if(op.is_locked){showToast('❌ مقفلة','error');return;} if(op.status!=='draft'){showToast('❌ ليست مسودة','error');return;} var f=OPERATIONS_STATE.currentFunding; if(f.funded<f.required){showToast('❌ التمويل المستلم '+formatMoney(f.funded)+' من '+formatMoney(f.required),'error');return;} if(!confirmAction('🚀 تفعيل العملية؟'))return; showLoading(); try{ await runQuery(function(){return APP.supabase.from('operations').update({status:'active'}).eq('id',opId);},{context:'opActivate',throwError:true}); _log('تفعيل عملية','operation',opId,null,'{"status":"active"}','workflow'); showToast('✅ تم التفعيل','success'); await openOperationDetails(opId); } catch(e){ showToast(handleSupabaseError(e,'التفعيل'),'error'); } finally { hideLoading(); } }
@@ -86,8 +97,6 @@ function opDistributeProfit(){ var op=OPERATIONS_STATE.currentOperation; if(!op)
  f.perInvestor.forEach(function(pi){ if(pi.profit>0)any=true; rows+='<div class="form-group"><label>'+escapeHtml(names[pi.investorId]||'ممول')+' (متبقي '+formatMoney(pi.remainingProfit)+')</label><input type="number" name="pd_'+pi.investorId+'" value="'+(pi.remainingProfit>0?pi.remainingProfit:'')+'" step="0.01"></div>'; });
  if(!any)rows='<p>لا توجد أرباح محددة.</p>'; _openDynamicModal('📊 توزيع الأرباح',rows,'submitOpAction','توزيع'); document.getElementById('opDynamicActionType').value='profit_distribution'; }
 function opReturnCapital(){ var op=OPERATIONS_STATE.currentOperation; if(!op){showToast('❌ افتح العملية','error');return;} if(op.is_locked){showToast('❌ مقفلة','error');return;} if(op.status!=='active'){showToast('❌ غير نشطة','error');return;} var f=OPERATIONS_STATE.currentFunding; var names={}; (OPERATIONS_STATE.referenceCache.investors||[]).forEach(function(x){names[x.id]=x.name;}); var rows=''; f.perInvestor.forEach(function(pi){ rows+='<div class="form-group"><label>'+escapeHtml(names[pi.investorId]||'ممول')+' (متبقي '+formatMoney(pi.remainingCapital)+')</label><input type="number" name="cr_'+pi.investorId+'" value="'+(pi.remainingCapital>0?pi.remainingCapital:'')+'" step="0.01"></div>'; }); _openDynamicModal('🔄 إرجاع رأس المال',rows,'submitOpAction','إرجاع'); document.getElementById('opDynamicActionType').value='capital_return'; }
-
-// ✅ v10.3.3: canEdit guard كأول سطر
 async function opComplete(){
  if(!canEdit()){ showToast('❌ لا توجد صلاحية','error'); return; }
  var opId=OPERATIONS_STATE.currentOperationId,op=OPERATIONS_STATE.currentOperation; if(!op){showToast('❌ افتح العملية','error');return;} if(op.status!=='active'){showToast('❌ غير نشطة','error');return;}
@@ -133,5 +142,5 @@ function _getVal(id){ var e=document.getElementById(id); return e?e.value:''; }
 function _setVal(id,v){ var e=document.getElementById(id); if(e)e.value=(v!==null&&v!==undefined)?v:''; }
 if(typeof document!=='undefined'){ initOperations(); }
 // ============================================================
-// END OF OPERATIONS.JS (v10.3.3)
+// END OF OPERATIONS.JS (v10.4.0)
 // ============================================================
