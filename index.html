@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>نظام إدارة التمويل</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/reports.css"> <!-- ✅ NEW -->
 </head>
 <body>
   <!-- Login Screen -->
@@ -24,6 +25,7 @@
       <button data-action="showScreen" data-screen="investors" class="nav-btn">الممولين</button>
       <button data-action="showScreen" data-screen="operations" class="nav-btn">العمليات</button>
       <button data-action="showScreen" data-screen="transfers" class="nav-btn">التحويلات</button>
+      <button data-action="showScreen" data-screen="reports" class="nav-btn admin-only">التقارير</button> <!-- ✅ NEW -->
       <button data-action="showScreen" data-screen="activityLog" class="nav-btn admin-only">سجل النشاط</button>
       <button data-action="showScreen" data-screen="users" class="nav-btn admin-only">المستخدمين</button>
     </nav>
@@ -95,6 +97,12 @@
         <button data-action="openTransferModal" class="admin-only">+ إضافة تحويل</button>
       </div>
       <div id="transfersTable"></div>
+    </div>
+
+    <!-- ✅ NEW: Reports Screen -->
+    <div id="reports" class="screen">
+      <h2>التقارير</h2>
+      <div id="reportsContent"></div>
     </div>
 
     <!-- Activity Log -->
@@ -333,7 +341,7 @@
     </div>
   </div>
 
-  <!-- Transfer Modal (محدث) -->
+  <!-- Transfer Modal -->
   <div id="transferModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -386,7 +394,6 @@
           <div class="summary-category" id="summaryCategory"></div>
         </div>
 
-        <!-- ✅ حقل الغرض المفقود -->
         <div class="form-group" id="transferPurposeRow" style="display:none;">
           <label for="transferPurpose">الغرض *</label>
           <select id="transferPurpose" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;"></select>
@@ -424,15 +431,16 @@
 
   <!-- Scripts -->
   <script src="js/core.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/activity.js"></script>
-<script src="js/calculations.js"></script>
-<script src="js/dashboard.js"></script>
-<script src="js/clients.js"></script>
-<script src="js/investors.js"></script>
-<script src="js/operations.js"></script>
-<script src="js/transfers.js"></script>
-<script src="js/users.js"></script>
-<script src="js/app.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/activity.js"></script>
+  <script src="js/calculations.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/clients.js"></script>
+  <script src="js/investors.js"></script>
+  <script src="js/operations.js"></script>
+  <script src="js/transfers.js"></script>
+  <script src="js/reports.js"></script> <!-- ✅ NEW -->
+  <script src="js/users.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
