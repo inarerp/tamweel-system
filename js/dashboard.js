@@ -1,11 +1,11 @@
 // ============================================================
 // نظام إدارة التمويل - Dashboard Module
-// Version: 2.0.4
+// Version: 2.0.5
 // Last Updated: 2026-08-16
 // ============================================================
-// v2.0.4: توحيد منطق تنبيه "تنتهي قريبًا":
-//         status === ACTIVE فقط + 0 <= daysUntilEnd <= DUE_SOON_DAYS (5)
-//         أي status آخر (بما فيه under_construction) لا يُظهر التنبيه أبدًا.
+// v2.0.5: تنبيهات أرباح الممولين أصبحت مرتبطة بالعملية:
+//         تظهر فقط للعمليات النشطة وخلال 5 أيام من النهاية (أو المتأخرة).
+// v2.0.4: توحيد منطق تنبيه "تنتهي قريبًا": active فقط + 0..5 أيام
 // v2.0.3: تغيير عتبة تنبيه "تستحق قريبًا" إلى 5 أيام (DUE_SOON_DAYS)
 // v2.0.2: إضافة bootstrap لتحميل شاشة الشركة (company.js + company.css)
 // v2.0.1: استخدام getOperationClientFlows بدل op.amount لرأس المال المستحق
@@ -99,14 +99,14 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
     return { operationsById: operationsById, clientsById: clientsById, investorsById: investorsById, clientOperations: clientOperations, transfersByOperation: transfersByOperation, transfersByInvestor: transfersByInvestor, opInvestorsByOperation: opInvestorsByOperation, opInvestorsByInvestor: opInvestorsByInvestor };
 }
 
-// ✅ v2.0.4: حساب الأيام المتبقية حتى نهاية العملية (موحّد)
+// ✅ حساب الأيام المتبقية حتى نهاية العملية (موحّد)
 function calcDaysUntilEnd(endDate, todayStr) {
     return Math.ceil((new Date(endDate).getTime() - new Date(todayStr).getTime()) / 86400000);
 }
 
-// ✅ v2.0.4: شرط تنبيه "تنتهي قريبًا" — active فقط + 0..DUE_SOON_DAYS
+// ✅ شرط تنبيه "تنتهي قريبًا" — active فقط + 0..DUE_SOON_DAYS
 function isEndingSoon(op, todayStr) {
-    if (op.status !== STATUS.ACTIVE) return false;   // أي status آخر (بما فيه under_construction) مرفوض
+    if (op.status !== STATUS.ACTIVE) return false;
     if (!op.end_date) return false;
     var d = calcDaysUntilEnd(op.end_date, todayStr);
     return (d >= 0 && d <= DUE_SOON_DAYS);
@@ -174,7 +174,6 @@ async function loadDashboardForClient() {
         var ops = data.indexes.clientOperations[APP.currentEntityId] || [];
         var today = new Date().toISOString().split('T')[0];
         ops.forEach(function(op) {
-            // ✅ v2.0.4: نفس القاعدة — active فقط + 0..5 أيام
             if (isEndingSoon(op, today)) {
                 alerts.push({ type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
             }
@@ -274,18 +273,36 @@ function renderDashboardAlerts(data) {
         if (op.status === STATUS.ACTIVE && op.end_date && op.end_date < today) alerts.push({ priority: 1, type: 'danger', icon: '🚨', message: 'عملية "' + op.name + '" متأخرة (كان يجب أن تنتهي ' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
     });
 
-    // 2) ✅ v2.0.4: تنتهي قريبًا — active فقط + 0 <= daysUntilEnd <= 5
+    // 2) تنتهي قريبًا — active فقط + 0..5 أيام
     data.operations.forEach(function(op) {
         if (isEndingSoon(op, today)) {
             alerts.push({ priority: 2, type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
         }
     });
 
-    data.investors.forEach(function(inv) {
-        if (inv.is_archived) return;
-        var summary = calculateInvestorSummary(inv.id, data);
-        if (summary.outstandingProfit > 0) alerts.push({ priority: 3, type: 'warning', icon: '', message: 'الممول "' + inv.name + '" له أرباح مستحقة: ' + formatMoney(summary.outstandingProfit), action: 'navigateToEntity', entityType: 'investor', entityId: inv.id });
+    // 3) ✅ v2.0.5: أرباح الممولين — مرتبطة بالعملية (نشطة + خلال 5 أيام أو متأخرة)
+    data.operations.forEach(function(op) {
+        if (op.status !== STATUS.ACTIVE || !op.end_date) return;      // غير نشطة → لا تنبيه
+        var d = calcDaysUntilEnd(op.end_date, today);
+        if (d > DUE_SOON_DAYS) return;                                 // باقي أكتر من 5 أيام → لا تنبيه
+        var ois = data.indexes.opInvestorsByOperation[op.id] || [];
+        var opTransfers = data.indexes.transfersByOperation[op.id] || [];
+        ois.forEach(function(oi) {
+            var entitled = parseFloat(oi.profit || 0);
+            if (entitled <= 0) return;
+            var distributed = 0;
+            opTransfers.forEach(function(t) {
+                if (t.investor_id === oi.investor_id && t.purpose === 'profit_distribution') distributed += parseFloat(t.amount || 0);
+            });
+            var remaining = entitled - distributed;
+            if (remaining > 0.01) {
+                var inv = data.indexes.investorsById[oi.investor_id];
+                alerts.push({ priority: 3, type: 'warning', icon: '💰', message: 'الممول "' + (inv ? inv.name : '-') + '" له أرباح مستحقة في عملية "' + op.name + '": ' + formatMoney(remaining), action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
+            }
+        });
     });
+
+    // 4) أرصدة العملاء الصغيرة
     data.clients.forEach(function(client) {
         if (client.is_archived) return;
         var summary = calculateClientSummary(client.id, data);
@@ -308,7 +325,6 @@ function renderDashboardStats(data) {
     data.operations.forEach(function(op) {
         if (op.status === STATUS.ACTIVE) {
             totalActiveFunding += parseFloat(op.amount || 0);
-            // ✅ v2.0.4: عداد "تنتهي قريبًا" يستخدم نفس القاعدة (active + 0..5)
             if (isEndingSoon(op, today)) endingSoon++;
             if (op.end_date && op.end_date < today) overdue++;
             var summary = calculateOperationSummary(op.id, data);
@@ -352,5 +368,5 @@ function renderDashboardStats(data) {
     document.body.appendChild(s);
 })();
 // ============================================================
-// END OF DASHBOARD.JS (v2.0.4)
+// END OF DASHBOARD.JS (v2.0.5)
 // ============================================================
