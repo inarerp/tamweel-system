@@ -1,15 +1,17 @@
 // ============================================================
 // نظام إدارة التمويل - Dashboard Module
 // Version: 2.0.4
-// Last Updated: 2026-08-15
+// Last Updated: 2026-08-16
 // ============================================================
-// v2.0.4: توحيد "تنتهي قريبًا" على 5 أيام + myAccount → navigateToEntity
+// v2.0.4: توحيد منطق تنبيه "تنتهي قريبًا":
+//         status === ACTIVE فقط + 0 <= daysUntilEnd <= DUE_SOON_DAYS (5)
+//         أي status آخر (بما فيه under_construction) لا يُظهر التنبيه أبدًا.
 // v2.0.3: تغيير عتبة تنبيه "تستحق قريبًا" إلى 5 أيام (DUE_SOON_DAYS)
 // v2.0.2: إضافة bootstrap لتحميل شاشة الشركة (company.js + company.css)
 // v2.0.1: استخدام getOperationClientFlows بدل op.amount لرأس المال المستحق
 // ============================================================
 
-// عتبة تنبيه "تستحق قريبًا" — عدد الأيام قبل تاريخ الاستحقاق التي يظهر عندها التنبيه
+// عتبة تنبيه "تنتهي قريبًا" — عدد الأيام قبل تاريخ الاستحقاق التي يظهر عندها التنبيه
 var DUE_SOON_DAYS = 5;
 
 function initDashboard() {
@@ -56,15 +58,12 @@ async function loadDashboardData() {
     var clientsResult = await runQuery(function() {
         return APP.supabase.from('clients').select('id, name, is_archived');
     }, { context: 'loadDashboardData-clients', throwError: true });
-
     var operations = opsResult.data || [];
     var operationInvestors = opInvResult.data || [];
     var transfers = transResult.data || [];
     var investors = invResult.data || [];
     var clients = clientsResult.data || [];
-
     var indexes = buildDashboardIndexes(operations, operationInvestors, transfers, investors, clients);
-
     return { operations: operations, operationInvestors: operationInvestors, transfers: transfers, investors: investors, clients: clients, indexes: indexes };
 }
 
@@ -72,7 +71,6 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
     var operationsById = {}, clientsById = {}, investorsById = {};
     var clientOperations = {}, transfersByOperation = {}, transfersByInvestor = {};
     var opInvestorsByOperation = {}, opInvestorsByInvestor = {};
-
     operations.forEach(function(op) {
         operationsById[op.id] = op;
         if (op.client_id) {
@@ -80,17 +78,14 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
             clientOperations[op.client_id].push(op);
         }
     });
-
     clients.forEach(function(c) { clientsById[c.id] = c; });
     investors.forEach(function(inv) { investorsById[inv.id] = inv; });
-
     operationInvestors.forEach(function(oi) {
         if (!opInvestorsByOperation[oi.operation_id]) opInvestorsByOperation[oi.operation_id] = [];
         opInvestorsByOperation[oi.operation_id].push(oi);
         if (!opInvestorsByInvestor[oi.investor_id]) opInvestorsByInvestor[oi.investor_id] = [];
         opInvestorsByInvestor[oi.investor_id].push(oi);
     });
-
     transfers.forEach(function(t) {
         if (t.operation_id) {
             if (!transfersByOperation[t.operation_id]) transfersByOperation[t.operation_id] = [];
@@ -101,23 +96,35 @@ function buildDashboardIndexes(operations, operationInvestors, transfers, invest
             transfersByInvestor[t.investor_id].push(t);
         }
     });
-
     return { operationsById: operationsById, clientsById: clientsById, investorsById: investorsById, clientOperations: clientOperations, transfersByOperation: transfersByOperation, transfersByInvestor: transfersByInvestor, opInvestorsByOperation: opInvestorsByOperation, opInvestorsByInvestor: opInvestorsByInvestor };
+}
+
+// ✅ v2.0.4: حساب الأيام المتبقية حتى نهاية العملية (موحّد)
+function calcDaysUntilEnd(endDate, todayStr) {
+    return Math.ceil((new Date(endDate).getTime() - new Date(todayStr).getTime()) / 86400000);
+}
+
+// ✅ v2.0.4: شرط تنبيه "تنتهي قريبًا" — active فقط + 0..DUE_SOON_DAYS
+function isEndingSoon(op, todayStr) {
+    if (op.status !== STATUS.ACTIVE) return false;   // أي status آخر (بما فيه under_construction) مرفوض
+    if (!op.end_date) return false;
+    var d = calcDaysUntilEnd(op.end_date, todayStr);
+    return (d >= 0 && d <= DUE_SOON_DAYS);
 }
 
 function renderStatCard(title, value, colorClass, options) {
     options = options || {};
     var clickAttr = '';
-    if (options.action === 'showScreen') clickAttr = ' data-action="showScreen" data-screen="' + options.screen + '" style="cursor: pointer;"';
-    else if (options.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + options.entityType + '" data-entity-id="' + options.entityId + '" style="cursor: pointer;"';
+    if (options.action === 'showScreen') clickAttr = ' data-action="showScreen" data-screen="' + options.screen + '" style="cursor:pointer;"';
+    else if (options.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + options.entityType + '" data-entity-id="' + options.entityId + '" style="cursor:pointer;"';
     var extraClass = options.profitField ? ' profit-field' : '';
     return '<div class="stat-card' + extraClass + '"' + clickAttr + '><h3>' + escapeHtml(title) + '</h3><div class="value ' + (colorClass || '') + '">' + value + '</div></div>';
 }
 
 function renderAlert(alert) {
     var clickAttr = '';
-    if (alert.action === 'showScreen') clickAttr = ' data-action="showScreen" data-screen="' + alert.screen + '" style="cursor: pointer;"';
-    else if (alert.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + alert.entityType + '" data-entity-id="' + alert.entityId + '" style="cursor: pointer;"';
+    if (alert.action === 'showScreen') clickAttr = ' data-action="showScreen" data-screen="' + alert.screen + '" style="cursor:pointer;"';
+    else if (alert.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + alert.entityType + '" data-entity-id="' + alert.entityId + '" style="cursor:pointer;"';
     return '<div class="alert-box ' + (alert.type || 'info') + '"' + clickAttr + '>' + alert.icon + ' ' + escapeHtml(alert.message) + '</div>';
 }
 
@@ -127,23 +134,14 @@ function renderActionCard(action) {
     else if (action.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + action.entityType + '" data-entity-id="' + action.entityId + '" style="cursor:pointer;"';
     return '<div class="alert-box ' + (action.type || 'info') + '"' + clickAttr + '>' + action.icon + ' ' + escapeHtml(action.message) + '<span class="action-arrow">→</span></div>';
 }
+
 function renderWelcome(name, subtitle) {
     return '<div class="welcome-card"><h2>مرحباً، ' + escapeHtml(name) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
 }
+
 function renderSection(title, icon, borderColor, content) {
     if (!content || content === '') return '';
     return '<div class="section-card" style="--accent:' + borderColor + '"><h3>' + icon + ' ' + escapeHtml(title) + '</h3>' + content + '</div>';
-}
-// في renderDashboardActions — حالة "لا إجراءات":
-// استبدل الـ inline div بـ:  return '<div class="success-box">✅ <strong>لا توجد إجراءات مطلوبة حالياً</strong> - كل شيء تحت السيطرة</div>';
-
-function renderWelcome(name, subtitle) {
-    return '<div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><h2 style="margin-bottom: 10px;">مرحباً، ' + escapeHtml(name) + '</h2><p style="color: #666;">' + escapeHtml(subtitle) + '</p></div>';
-}
-
-function renderSection(title, icon, borderColor, content) {
-    if (!content || content === '') return '';
-    return '<div style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-right: 4px solid ' + borderColor + ';"><h3 style="margin-bottom: 12px; color: #333;">' + icon + ' ' + escapeHtml(title) + '</h3>' + content + '</div>';
 }
 
 async function loadDashboardForAdmin() {
@@ -172,12 +170,12 @@ async function loadDashboardForClient() {
         var data = await loadDashboardData();
         var summary = calculateClientSummary(APP.currentEntityId, data);
         var alerts = [];
-        // ✅ v2.0.4: myAccount → navigateToEntity (client)
         if (summary.balance > 0) alerts.push({ type: 'info', icon: '💵', message: 'لديك رصيد غير مستخدم بقيمة ' + formatMoney(summary.balance), action: 'navigateToEntity', entityType: 'client', entityId: APP.currentEntityId });
         var ops = data.indexes.clientOperations[APP.currentEntityId] || [];
+        var today = new Date().toISOString().split('T')[0];
         ops.forEach(function(op) {
-            // ✅ v2.0.4: توحيد على DUE_SOON_DAYS (5 أيام)
-            if (op.status === STATUS.ACTIVE && op.end_date && isDateWithinDays(op.end_date, DUE_SOON_DAYS)) {
+            // ✅ v2.0.4: نفس القاعدة — active فقط + 0..5 أيام
+            if (isEndingSoon(op, today)) {
                 alerts.push({ type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
             }
         });
@@ -209,7 +207,6 @@ async function loadDashboardForInvestor() {
         var data = await loadDashboardData();
         var summary = calculateInvestorSummary(APP.currentEntityId, data);
         var alerts = [];
-        // ✅ v2.0.4: myAccount → navigateToEntity (investor)
         if (summary.outstandingProfit > 0 && canViewProfits()) alerts.push({ type: 'warning', icon: '💰', message: 'لديك أرباح مستحقة بقيمة ' + formatMoney(summary.outstandingProfit), action: 'navigateToEntity', entityType: 'investor', entityId: APP.currentEntityId });
         if (summary.capitalPending > 0) alerts.push({ type: 'info', icon: '', message: 'لديك رأس مال جاهز للإرجاع بقيمة ' + formatMoney(summary.capitalPending), action: 'navigateToEntity', entityType: 'investor', entityId: APP.currentEntityId });
         var html = renderWelcome(investor.name, 'هذه لوحة التحكم الخاصة بك');
@@ -238,10 +235,8 @@ function renderDashboardActions(data) {
     var actions = [];
     var draftOps = data.operations.filter(function(op) { return op.status === STATUS.DRAFT && !op.is_archived; });
     if (draftOps.length > 0) actions.push({ type: 'warning', icon: '📝', message: draftOps.length + ' عملية مسودة في انتظار التفعيل', action: 'showScreen', screen: 'operations' });
-
     var needsApproval = data.operations.filter(function(op) { return op.status === STATUS.ACTIVE && op.final_profit && op.final_profit > 0 && !op.profit_approval_date; });
     if (needsApproval.length > 0) actions.push({ type: 'warning', icon: '💰', message: needsApproval.length + ' عملية تحتاج اعتماد الربح', action: 'navigateToEntity', entityType: 'operation', entityId: needsApproval[0].id });
-
     var readyForProfitCount = 0, firstReadyOp = null;
     data.operations.forEach(function(op) {
         if (op.status !== STATUS.ACTIVE && op.status !== STATUS.COMPLETED) return;
@@ -250,7 +245,6 @@ function renderDashboardActions(data) {
         if (summary && summary.remainingProfit > 0) { readyForProfitCount++; if (!firstReadyOp) firstReadyOp = op; }
     });
     if (readyForProfitCount > 0) actions.push({ type: 'info', icon: '📊', message: readyForProfitCount + ' عملية بها أرباح جاهزة للصرف', action: 'navigateToEntity', entityType: 'operation', entityId: firstReadyOp.id });
-
     var readyForReturnCount = 0, firstReturnOp = null;
     data.operations.forEach(function(op) {
         if (op.status !== STATUS.COMPLETED) return;
@@ -258,7 +252,6 @@ function renderDashboardActions(data) {
         if (summary && (summary.totalInvested - summary.capitalReturned) > 0) { readyForReturnCount++; if (!firstReturnOp) firstReturnOp = op; }
     });
     if (readyForReturnCount > 0) actions.push({ type: 'info', icon: '🏦', message: readyForReturnCount + ' عملية بها رأس مال جاهز للإرجاع', action: 'navigateToEntity', entityType: 'operation', entityId: firstReturnOp.id });
-
     var clientsWithBalance = [];
     data.clients.forEach(function(client) {
         if (client.is_archived) return;
@@ -266,9 +259,7 @@ function renderDashboardActions(data) {
         if (summary.balance > 100000) clientsWithBalance.push({ client: client, balance: summary.balance });
     });
     if (clientsWithBalance.length > 0) actions.push({ type: 'info', icon: '💵', message: clientsWithBalance.length + ' عميل لديهم رصيد كبير غير مستخدم', action: 'navigateToEntity', entityType: 'client', entityId: clientsWithBalance[0].client.id });
-
-    if (actions.length === 0) return '<div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c3e6cb;">✅ <strong>لا توجد إجراءات مطلوبة حالياً</strong> - كل شيء تحت السيطرة</div>';
-
+    if (actions.length === 0) return '<div class="success-box">✅ <strong>لا توجد إجراءات مطلوبة حالياً</strong> - كل شيء تحت السيطرة</div>';
     var h = '';
     actions.forEach(function(a) { h += renderActionCard(a); });
     return renderSection('إجراءات مطلوبة', '⚡', '#fd7e14', h);
@@ -277,15 +268,17 @@ function renderDashboardActions(data) {
 function renderDashboardAlerts(data) {
     var alerts = [];
     var today = new Date().toISOString().split('T')[0];
-    // ✅ v2.0.3: عتبة "تستحق قريبًا" = DUE_SOON_DAYS (5 أيام)
-    var dueSoonDate = new Date(Date.now() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+    // 1) عمليات متأخرة (active فقط وانتهت فعليًا)
     data.operations.forEach(function(op) {
         if (op.status === STATUS.ACTIVE && op.end_date && op.end_date < today) alerts.push({ priority: 1, type: 'danger', icon: '🚨', message: 'عملية "' + op.name + '" متأخرة (كان يجب أن تنتهي ' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
     });
 
+    // 2) ✅ v2.0.4: تنتهي قريبًا — active فقط + 0 <= daysUntilEnd <= 5
     data.operations.forEach(function(op) {
-        if (op.status === STATUS.ACTIVE && op.end_date && op.end_date >= today && op.end_date <= dueSoonDate) alerts.push({ priority: 2, type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
+        if (isEndingSoon(op, today)) {
+            alerts.push({ priority: 2, type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
+        }
     });
 
     data.investors.forEach(function(inv) {
@@ -293,7 +286,6 @@ function renderDashboardAlerts(data) {
         var summary = calculateInvestorSummary(inv.id, data);
         if (summary.outstandingProfit > 0) alerts.push({ priority: 3, type: 'warning', icon: '', message: 'الممول "' + inv.name + '" له أرباح مستحقة: ' + formatMoney(summary.outstandingProfit), action: 'navigateToEntity', entityType: 'investor', entityId: inv.id });
     });
-
     data.clients.forEach(function(client) {
         if (client.is_archived) return;
         var summary = calculateClientSummary(client.id, data);
@@ -305,21 +297,19 @@ function renderDashboardAlerts(data) {
     var top = alerts.slice(0, 10);
     var h = '';
     top.forEach(function(a) { h += renderAlert(a); });
-    if (alerts.length > 10) h += '<button class="btn btn-secondary btn-block" data-action="showScreen" data-screen="activityLog" style="margin-top: 10px;">عرض الكل (' + alerts.length + ') →</button>';
+    if (alerts.length > 10) h += '<button class="btn btn-secondary btn-block" data-action="showScreen" data-screen="activityLog" style="margin-top:10px;">عرض الكل (' + alerts.length + ') →</button>';
     return renderSection('تنبيهات (' + alerts.length + ')', '🔔', '#17a2b8', h);
 }
 
 function renderDashboardStats(data) {
     var today = new Date().toISOString().split('T')[0];
-    // ✅ v2.0.4: توحيد على DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
-    var dueSoonDate = new Date(Date.now() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     var totalActiveFunding = 0, endingSoon = 0, overdue = 0, completed = 0, draft = 0;
     var totalOutstandingInvestorProfit = 0, totalOutstandingCapital = 0;
-
     data.operations.forEach(function(op) {
         if (op.status === STATUS.ACTIVE) {
             totalActiveFunding += parseFloat(op.amount || 0);
-            if (op.end_date && op.end_date <= dueSoonDate && op.end_date >= today) endingSoon++;
+            // ✅ v2.0.4: عداد "تنتهي قريبًا" يستخدم نفس القاعدة (active + 0..5)
+            if (isEndingSoon(op, today)) endingSoon++;
             if (op.end_date && op.end_date < today) overdue++;
             var summary = calculateOperationSummary(op.id, data);
             if (summary) {
@@ -331,10 +321,8 @@ function renderDashboardStats(data) {
         if (op.status === STATUS.COMPLETED) completed++;
         if (op.status === STATUS.DRAFT) draft++;
     });
-
     var activeClients = data.clients.filter(function(c) { return !c.is_archived; }).length;
     var activeInvestors = data.investors.filter(function(i) { return !i.is_archived; }).length;
-
     var html = '';
     html += renderStatCard('التمويل النشط', formatMoney(totalActiveFunding), 'blue', { action: 'showScreen', screen: 'operations' });
     html += renderStatCard('عمليات متأخرة', overdue, 'red', { action: 'showScreen', screen: 'operations' });
