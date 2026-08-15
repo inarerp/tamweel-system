@@ -306,6 +306,23 @@ function showApp() {
 function initAuth() {
     debug('🔐 بدء تهيئة auth.js', 'info');
     registerAuthListener();
+    
+    // ✅ ربط مباشر لزر الدخول (يعمل حتى لو غاب data-action في HTML)
+    var loginBtn = document.getElementById('loginBtn')
+        || document.querySelector('#loginScreen [data-action="handleLoginClick"]')
+        || document.querySelector('#loginScreen button');
+    
+    if (loginBtn) {
+        loginBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();  // يمنع استدعاءً مزدوجًا عبر delegation
+            handleLoginClick();
+        });
+        debug('✅ تم ربط زر الدخول مباشرة', 'success');
+    } else {
+        debug('⚠️ زر الدخول غير موجود', 'warning');
+    }
+    
     debug('✅ auth.js جاهز', 'success');
 }
 // ============================================================
