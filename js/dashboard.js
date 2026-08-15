@@ -3,7 +3,7 @@
 // Version: 2.0.4
 // Last Updated: 2026-08-15
 // ============================================================
-// v2.0.4: بطاقة "تنتهي قريبًا" في renderDashboardStats تستخدم DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
+// v2.0.4: توحيد "تنتهي قريبًا" على 5 أيام + myAccount → navigateToEntity
 // v2.0.3: تغيير عتبة تنبيه "تستحق قريبًا" إلى 5 أيام (DUE_SOON_DAYS)
 // v2.0.2: إضافة bootstrap لتحميل شاشة الشركة (company.js + company.css)
 // v2.0.1: استخدام getOperationClientFlows بدل op.amount لرأس المال المستحق
@@ -163,10 +163,12 @@ async function loadDashboardForClient() {
         var data = await loadDashboardData();
         var summary = calculateClientSummary(APP.currentEntityId, data);
         var alerts = [];
-        if (summary.balance > 0) alerts.push({ type: 'info', icon: '💵', message: 'لديك رصيد غير مستخدم بقيمة ' + formatMoney(summary.balance), action: 'showScreen', screen: 'myAccount' });
+        // ✅ v2.0.4: myAccount → navigateToEntity (client)
+        if (summary.balance > 0) alerts.push({ type: 'info', icon: '💵', message: 'لديك رصيد غير مستخدم بقيمة ' + formatMoney(summary.balance), action: 'navigateToEntity', entityType: 'client', entityId: APP.currentEntityId });
         var ops = data.indexes.clientOperations[APP.currentEntityId] || [];
         ops.forEach(function(op) {
-            if (op.status === STATUS.ACTIVE && op.end_date && isDateWithinDays(op.end_date, 7)) {
+            // ✅ v2.0.4: توحيد على DUE_SOON_DAYS (5 أيام)
+            if (op.status === STATUS.ACTIVE && op.end_date && isDateWithinDays(op.end_date, DUE_SOON_DAYS)) {
                 alerts.push({ type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
             }
         });
@@ -198,8 +200,9 @@ async function loadDashboardForInvestor() {
         var data = await loadDashboardData();
         var summary = calculateInvestorSummary(APP.currentEntityId, data);
         var alerts = [];
-        if (summary.outstandingProfit > 0 && canViewProfits()) alerts.push({ type: 'warning', icon: '💰', message: 'لديك أرباح مستحقة بقيمة ' + formatMoney(summary.outstandingProfit), action: 'showScreen', screen: 'myAccount' });
-        if (summary.capitalPending > 0) alerts.push({ type: 'info', icon: '', message: 'لديك رأس مال جاهز للإرجاع بقيمة ' + formatMoney(summary.capitalPending), action: 'showScreen', screen: 'myAccount' });
+        // ✅ v2.0.4: myAccount → navigateToEntity (investor)
+        if (summary.outstandingProfit > 0 && canViewProfits()) alerts.push({ type: 'warning', icon: '💰', message: 'لديك أرباح مستحقة بقيمة ' + formatMoney(summary.outstandingProfit), action: 'navigateToEntity', entityType: 'investor', entityId: APP.currentEntityId });
+        if (summary.capitalPending > 0) alerts.push({ type: 'info', icon: '', message: 'لديك رأس مال جاهز للإرجاع بقيمة ' + formatMoney(summary.capitalPending), action: 'navigateToEntity', entityType: 'investor', entityId: APP.currentEntityId });
         var html = renderWelcome(investor.name, 'هذه لوحة التحكم الخاصة بك');
         if (alerts.length > 0) { var a = ''; alerts.forEach(function(x) { a += renderAlert(x); }); html += a; }
         alertsContainer.innerHTML = html;
@@ -265,7 +268,7 @@ function renderDashboardActions(data) {
 function renderDashboardAlerts(data) {
     var alerts = [];
     var today = new Date().toISOString().split('T')[0];
-    // ✅ v2.0.3: عتبة "تستحق قريبًا" = DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
+    // ✅ v2.0.3: عتبة "تستحق قريبًا" = DUE_SOON_DAYS (5 أيام)
     var dueSoonDate = new Date(Date.now() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     data.operations.forEach(function(op) {
@@ -299,7 +302,7 @@ function renderDashboardAlerts(data) {
 
 function renderDashboardStats(data) {
     var today = new Date().toISOString().split('T')[0];
-    // ✅ v2.0.4: بطاقة "تنتهي قريبًا" تستخدم DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
+    // ✅ v2.0.4: توحيد على DUE_SOON_DAYS (5 أيام) بدل 30 يومًا
     var dueSoonDate = new Date(Date.now() + DUE_SOON_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     var totalActiveFunding = 0, endingSoon = 0, overdue = 0, completed = 0, draft = 0;
     var totalOutstandingInvestorProfit = 0, totalOutstandingCapital = 0;
