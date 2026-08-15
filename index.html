@@ -9,14 +9,21 @@
 </head>
 <body>
   <!-- Login Screen -->
-  <div id="loginScreen">
+<div id="loginScreen" class="login-container">
+  <div class="login-box">
     <h1>نظام إدارة التمويل</h1>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <input type="email" id="loginEmail" placeholder="البريد الإلكتروني">
-    <input type="password" id="loginPassword" placeholder="كلمة المرور">
-    <button id="loginBtn" type="button" data-action="handleLoginClick">تسجيل الدخول</button>
+    <div id="errorMsg" class="error-message" style="display:none"></div>
+    <div class="form-group">
+      <label for="loginEmail">البريد الإلكتروني</label>
+      <input type="email" id="loginEmail" placeholder="name@company.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label for="loginPassword">كلمة المرور</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button id="loginBtn" type="button" class="btn btn-primary btn-block" data-action="handleLoginClick">تسجيل الدخول</button>
   </div>
-
+</div>
   <!-- App Container -->
   <div id="appContainer" style="display:none;">
     <nav>
