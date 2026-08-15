@@ -123,10 +123,19 @@ function renderAlert(alert) {
 
 function renderActionCard(action) {
     var clickAttr = '';
-    if (action.action === 'showScreen') clickAttr = ' data-action="showScreen" data-screen="' + action.screen + '" style="cursor: pointer;"';
-    else if (action.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + action.entityType + '" data-entity-id="' + action.entityId + '" style="cursor: pointer;"';
-    return '<div class="alert-box ' + (action.type || 'info') + '"' + clickAttr + '>' + action.icon + ' ' + escapeHtml(action.message) + ' <span style="float: left; font-weight: bold;">→</span></div>';
+    if (action.action === 'showScreen') clickAttr = ' data-action="showScreen" data-screen="' + action.screen + '" style="cursor:pointer;"';
+    else if (action.action === 'navigateToEntity') clickAttr = ' data-action="navigateToEntity" data-entity-type="' + action.entityType + '" data-entity-id="' + action.entityId + '" style="cursor:pointer;"';
+    return '<div class="alert-box ' + (action.type || 'info') + '"' + clickAttr + '>' + action.icon + ' ' + escapeHtml(action.message) + '<span class="action-arrow">→</span></div>';
 }
+function renderWelcome(name, subtitle) {
+    return '<div class="welcome-card"><h2>مرحباً، ' + escapeHtml(name) + '</h2><p>' + escapeHtml(subtitle) + '</p></div>';
+}
+function renderSection(title, icon, borderColor, content) {
+    if (!content || content === '') return '';
+    return '<div class="section-card" style="--accent:' + borderColor + '"><h3>' + icon + ' ' + escapeHtml(title) + '</h3>' + content + '</div>';
+}
+// في renderDashboardActions — حالة "لا إجراءات":
+// استبدل الـ inline div بـ:  return '<div class="success-box">✅ <strong>لا توجد إجراءات مطلوبة حالياً</strong> - كل شيء تحت السيطرة</div>';
 
 function renderWelcome(name, subtitle) {
     return '<div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"><h2 style="margin-bottom: 10px;">مرحباً، ' + escapeHtml(name) + '</h2><p style="color: #666;">' + escapeHtml(subtitle) + '</p></div>';
