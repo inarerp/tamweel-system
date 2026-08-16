@@ -226,5 +226,20 @@ function clearUsersReferenceCache(){ USERS_STATE.referenceCache.clients=null; US
 window.clearUsersReferenceCache = clearUsersReferenceCache;
 function editUser(id){ openUserModal(id); }
 // ============================================================
+// INIT — ضمان ربط أحداث الـ Modals
+// (app.js يسجّل loadUsers مباشرة ولا يستدعي initUsers،
+//  لذلك نربط الأحداث هنا عند تحميل السكربت — مثل reports.js)
+// ============================================================
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { initUsers(); });
+    } else {
+        initUsers();
+    }
+}
+// ============================================================
+// END OF USERS.JS
+// ============================================================
+// ============================================================
 // END OF USERS.JS (v3.1.0)
 // ============================================================
