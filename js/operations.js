@@ -78,7 +78,12 @@ h+='<div class="table-scroll" style="margin-top:10px;"><table><thead><tr><th>ا�
 h+='<tr><td>1 (الأم)</td><td>'+formatDate(op.start_date)+'</td><td>'+formatDate(op.end_date)+'</td><td>'+formatDate(op.profit_due_date)+'</td><td>'+getStatusText(op.status)+'</td><td></td></tr>';
 list.forEach(function(c){ h+='<tr><td>'+c.cycle_number+'</td><td>'+formatDate(c.start_date)+'</td><td>'+formatDate(c.end_date)+'</td><td>'+formatDate(c.profit_due_date)+'</td><td>'+getStatusText(c.status)+'</td><td><a href="#" data-action="openOperationDetails" data-param="'+c.id+'">فتح</a></td></tr>'; });
 h+='</tbody></table></div></div>'; host.innerHTML=h; }
-function toggleRecurringFields(){ var on=!!(document.getElementById('opIsRecurring')&&document.getElementById('opIsRecurring').checked); var ex=document.getElementById('opRecurringExtra'); if(ex)ex.style.display=on?'grid':'none'; }
+function toggleRecurringFields(){
+  var on=!!(document.getElementById('opIsRecurring')&&document.getElementById('opIsRecurring').checked);
+  var ex=document.getElementById('opRecurringExtra'); if(ex)ex.style.display=on?'grid':'none';
+  var iv=document.getElementById('opRecurrenceIntervalDays');
+  if(iv){ var g=iv.closest('.form-group'); if(g)g.style.display=on?'block':'none'; }
+}
 function bindRecurringToggle(){ var b=document.getElementById('opIsRecurring'); if(b&&!b.dataset.bound){ b.dataset.bound='1'; b.addEventListener('change',toggleRecurringFields); } }
 async function generateNextCycle(opId){ if(!canEdit())return; showLoading(); try{ var r=await APP.supabase.rpc('admin_generate_cycles'); showToast('✅ تم توليد '+(r.data||0)+' دورة','success'); await openOperationDetails(opId); }catch(e){ showToast('❌ '+e.message,'error'); } finally{ hideLoading(); } }
 async function stopRecurring(opId){ if(!canEdit())return; if(!confirmAction('⏸ إيقاف التكرار؟ لن تُولَّد دورات جديدة.'))return; await runQuery(function(){return APP.supabase.from('operations').update({recurring_active:false}).eq('id',opId);},{context:'stopRec',throwError:true}); showToast('تم إيقاف التكرار','success'); await openOperationDetails(opId); }
