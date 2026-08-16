@@ -467,109 +467,55 @@
     </div>
   </div>
 
-  <!-- ✅ User Edit Modal (محدث: مع username) -->
-  <div id="userModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="userModalTitle">تعديل المستخدم</h2>
-        <button class="close-btn" data-action="closeModal" data-modal="userModal">&times;</button>
-      </div>
-      <form data-submit="saveUserProfile">
-        <input type="hidden" id="userId">
-        <div class="form-group">
-          <label>اسم المستخدم *</label>
-          <input type="text" id="userUsernameInput" required>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>الدور *</label>
-            <select id="userRoleSelect"></select>
-          </div>
-          <div class="form-group">
-            <label>الصلاحية *</label>
-            <select id="userPermissionSelect"></select>
-          </div>
-        </div>
-        <div class="form-group" id="userEntityRow" style="display:none;">
-          <input type="hidden" id="userEntityType">
-          <label>الكيان المرتبط</label>
-          <select id="userEntitySelect"></select>
-        </div>
-        <div class="form-group">
-          <label>الحالة</label>
-          <select id="userActiveSelect">
-            <option value="true">مفعل</option>
-            <option value="false">معطل</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">حفظ</button>
-      </form>
+  <!-- User Edit Modal -->
+<div id="userModal" class="modal"><div class="modal-content">
+  <div class="modal-header"><h2 id="userModalTitle">تعديل المستخدم</h2><button class="close-btn" data-action="closeModal" data-modal="userModal">&times;</button></div>
+  <form data-submit="saveUserProfile">
+    <input type="hidden" id="userId">
+    <div class="form-group"><label>اسم المستخدم *</label><input type="text" id="userUsernameInput" required></div>
+    <div class="form-row">
+      <div class="form-group"><label>الدور *</label><select id="userRoleSelect"></select></div>
+      <div class="form-group"><label>الصلاحية *</label><select id="userPermissionSelect"></select></div>
     </div>
-  </div>
+    <div class="form-group" id="userEntityRow" style="display:none;">
+      <input type="hidden" id="userEntityType">
+      <label id="userEntityLabel">الكيان المرتبط *</label>
+      <select id="userEntitySelect"></select>
+    </div>
+    <div class="form-group"><label>الحالة</label><select id="userActiveSelect"><option value="true">مفعل</option><option value="false">معطل</option></select></div>
+    <button type="submit" class="btn btn-primary btn-block">حفظ</button>
+  </form>
+</div></div>
 
-  <!-- ✅ Create User Modal -->
-  <div id="createUserModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>إضافة مستخدم</h2>
-        <button class="close-btn" data-action="closeModal" data-modal="createUserModal">&times;</button>
-      </div>
-      <form data-submit="saveNewUser">
-        <div class="form-group">
-          <label>اسم المستخدم *</label>
-          <input type="text" id="createUsername" required>
-        </div>
-        <div class="form-group">
-          <label>كلمة المرور *</label>
-          <input type="password" id="createPassword" required>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>الدور *</label>
-            <select id="createUserRoleSelect"></select>
-          </div>
-          <div class="form-group">
-            <label>الصلاحية *</label>
-            <select id="createUserPermissionSelect"></select>
-          </div>
-        </div>
-        <div class="form-group" id="createUserEntityRow" style="display:none;">
-          <input type="hidden" id="createUserEntityType">
-          <label>الكيان المرتبط</label>
-          <select id="createUserEntitySelect"></select>
-        </div>
-        <div class="form-group">
-          <label>الحالة</label>
-          <select id="createUserStatus">
-            <option value="true">مفعل</option>
-            <option value="false">معطل</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">حفظ</button>
-      </form>
+<!-- Create User Modal -->
+<div id="createUserModal" class="modal"><div class="modal-content">
+  <div class="modal-header"><h2>إضافة مستخدم</h2><button class="close-btn" data-action="closeModal" data-modal="createUserModal">&times;</button></div>
+  <form data-submit="saveNewUser">
+    <div class="form-group"><label>اسم المستخدم *</label><input type="text" id="createUsername" required></div>
+    <div class="form-group"><label>كلمة المرور *</label><input type="password" id="createPassword" required></div>
+    <div class="form-row">
+      <div class="form-group"><label>الدور *</label><select id="createUserRoleSelect"></select></div>
+      <div class="form-group"><label>الصلاحية *</label><select id="createUserPermissionSelect"></select></div>
     </div>
-  </div>
+    <div class="form-group" id="createUserEntityRow" style="display:none;">
+      <input type="hidden" id="createUserEntityType">
+      <label id="createUserEntityLabel">الكيان المرتبط *</label>
+      <select id="createUserEntitySelect"></select>
+    </div>
+    <div class="form-group"><label>الحالة</label><select id="createUserStatus"><option value="true">مفعل</option><option value="false">معطل</option></select></div>
+    <button type="submit" class="btn btn-primary btn-block">حفظ</button>
+  </form>
+</div></div>
 
-  <!-- ✅ Change Password Modal -->
-  <div id="changePasswordModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>تغيير كلمة المرور</h2>
-        <button class="close-btn" data-action="closeModal" data-modal="changePasswordModal">&times;</button>
-      </div>
-      <form data-submit="savePasswordChange">
-        <div class="form-group">
-          <label>كلمة المرور الجديدة *</label>
-          <input type="password" id="newPassword" required>
-        </div>
-        <div class="form-group">
-          <label>تأكيد كلمة المرور *</label>
-          <input type="password" id="confirmPassword" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">تغيير</button>
-      </form>
-    </div>
-  </div>
+<!-- Change Password Modal -->
+<div id="changePasswordModal" class="modal"><div class="modal-content">
+  <div class="modal-header"><h2>تغيير كلمة المرور</h2><button class="close-btn" data-action="closeModal" data-modal="changePasswordModal">&times;</button></div>
+  <form data-submit="savePasswordChange">
+    <div class="form-group"><label>كلمة المرور الجديدة *</label><input type="password" id="newPassword" required></div>
+    <div class="form-group"><label>تأكيد كلمة المرور *</label><input type="password" id="confirmPassword" required></div>
+    <button type="submit" class="btn btn-primary btn-block">تغيير</button>
+  </form>
+</div></div>
 
   <!-- ============================================================ -->
   <!-- DEBUG PANEL (Floating Button + Side Panel) -->
