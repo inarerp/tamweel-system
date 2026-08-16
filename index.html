@@ -10,34 +10,57 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <!-- Login Screen -->
-<div id="loginScreen" class="login-container">
-  <div class="login-box">
-    <h1>نظام إدارة التمويل</h1>
-    <div id="errorMsg" class="error-message" style="display:none"></div>
-    <div class="form-group">
-      <label for="loginEmail">البريد الإلكتروني</label>
-      <input type="email" id="loginEmail" placeholder="name@company.com" autocomplete="email">
+
+  <!-- ============================================================ -->
+  <!-- LOGIN SCREEN -->
+  <!-- ============================================================ -->
+  <div id="loginScreen" class="login-container">
+    <div class="login-box">
+      <h1>نظام إدارة التمويل</h1>
+      <div id="errorMsg" class="error-message" style="display:none"></div>
+      <div class="form-group">
+        <label for="loginUsername">اسم المستخدم</label>
+        <input type="text" id="loginUsername" placeholder="username" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">كلمة المرور</label>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button id="loginBtn" type="button" class="btn btn-primary btn-block" data-action="handleLoginClick">تسجيل الدخول</button>
     </div>
-    <div class="form-group">
-      <label for="loginPassword">كلمة المرور</label>
-      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button id="loginBtn" type="button" class="btn btn-primary btn-block" data-action="handleLoginClick">تسجيل الدخول</button>
   </div>
-</div>
-  <!-- App Container -->
+
+  <!-- ============================================================ -->
+  <!-- APP CONTAINER -->
+  <!-- ============================================================ -->
   <div id="appContainer" style="display:none;">
+
+    <!-- Header -->
+    <header class="header">
+      <h1>نظام إدارة التمويل</h1>
+      <div class="user-info">
+        <span id="userEmail"></span>
+        <span id="userRole" class="badge"></span>
+        <span id="userPermission" class="badge"></span>
+        <button class="btn btn-outline btn-sm" data-action="doLogout">خروج</button>
+      </div>
+    </header>
+
+    <!-- Navigation -->
     <nav>
       <button data-action="showScreen" data-screen="dashboard" class="nav-btn active">الرئيسية</button>
       <button data-action="showScreen" data-screen="clients" class="nav-btn">العملاء</button>
       <button data-action="showScreen" data-screen="investors" class="nav-btn">الممولين</button>
       <button data-action="showScreen" data-screen="operations" class="nav-btn">العمليات</button>
       <button data-action="showScreen" data-screen="transfers" class="nav-btn">التحويلات</button>
-      <button data-action="showScreen" data-screen="reports" class="nav-btn admin-only">التقارير</button> <!-- ✅ NEW -->
+      <button data-action="showScreen" data-screen="reports" class="nav-btn admin-only">التقارير</button>
       <button data-action="showScreen" data-screen="activityLog" class="nav-btn admin-only">سجل النشاط</button>
       <button data-action="showScreen" data-screen="users" class="nav-btn admin-only">المستخدمين</button>
     </nav>
+
+    <!-- ============================================================ -->
+    <!-- SCREENS -->
+    <!-- ============================================================ -->
 
     <!-- Dashboard -->
     <div id="dashboard" class="screen active">
@@ -108,7 +131,7 @@
       <div id="transfersTable"></div>
     </div>
 
-    <!-- ✅ NEW: Reports Screen -->
+    <!-- Reports -->
     <div id="reports" class="screen">
       <h2>التقارير</h2>
       <div id="reportsContent"></div>
@@ -129,12 +152,21 @@
       <div id="activityLogTable"></div>
     </div>
 
-    <!-- Users -->
+    <!-- Users (✅ محدّث: toolbar + زر إضافة) -->
     <div id="users" class="screen">
       <h2>إدارة المستخدمين</h2>
+      <div class="table-actions">
+        <input type="text" id="usersSearch" placeholder="بحث...">
+        <button class="btn btn-primary admin-only" data-action="openCreateUserModal">+ إضافة مستخدم</button>
+      </div>
       <div id="usersTable"></div>
     </div>
+
   </div>
+
+  <!-- ============================================================ -->
+  <!-- MODALS -->
+  <!-- ============================================================ -->
 
   <!-- Client Modal -->
   <div id="clientModal" class="modal">
@@ -374,8 +406,8 @@
           </select>
         </div>
 
-        <div class="form-group" id="transferFromEntityRow" style="display:none;background:#eef0ff;padding:12px;border-radius:10px;border:2px solid #667eea;margin:12px 0;">
-          <label id="transferFromEntityLabel" style="display:block;font-weight:bold;color:#4c5fd5;margin-bottom:8px;">اختر الطرف *</label>
+        <div class="form-group" id="transferFromEntityRow" style="display:none;">
+          <label id="transferFromEntityLabel" style="display:block;font-weight:bold;margin-bottom:8px;">اختر الطرف *</label>
           <select id="transferFromEntity" style="width:100%;padding:12px;font-size:16px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></select>
         </div>
 
@@ -389,8 +421,8 @@
           </select>
         </div>
 
-        <div class="form-group" id="transferToEntityRow" style="display:none;background:#eef0ff;padding:12px;border-radius:10px;border:2px solid #667eea;margin:12px 0;">
-          <label id="transferToEntityLabel" style="display:block;font-weight:bold;color:#4c5fd5;margin-bottom:8px;">اختر الطرف *</label>
+        <div class="form-group" id="transferToEntityRow" style="display:none;">
+          <label id="transferToEntityLabel" style="display:block;font-weight:bold;margin-bottom:8px;">اختر الطرف *</label>
           <select id="transferToEntity" style="width:100%;padding:12px;font-size:16px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;"></select>
         </div>
 
@@ -435,10 +467,131 @@
     </div>
   </div>
 
-  <!-- Debug Panel Button -->
-  <button id="debugToggle" onclick="toggleDebug()" style="position:fixed;bottom:20px;right:20px;z-index:9999;">🐞</button>
+  <!-- ✅ User Edit Modal (محدث: مع username) -->
+  <div id="userModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="userModalTitle">تعديل المستخدم</h2>
+        <button class="close-btn" data-action="closeModal" data-modal="userModal">&times;</button>
+      </div>
+      <form data-submit="saveUserProfile">
+        <input type="hidden" id="userId">
+        <div class="form-group">
+          <label>اسم المستخدم *</label>
+          <input type="text" id="userUsernameInput" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>الدور *</label>
+            <select id="userRoleSelect"></select>
+          </div>
+          <div class="form-group">
+            <label>الصلاحية *</label>
+            <select id="userPermissionSelect"></select>
+          </div>
+        </div>
+        <div class="form-group" id="userEntityRow" style="display:none;">
+          <input type="hidden" id="userEntityType">
+          <label>الكيان المرتبط</label>
+          <select id="userEntitySelect"></select>
+        </div>
+        <div class="form-group">
+          <label>الحالة</label>
+          <select id="userActiveSelect">
+            <option value="true">مفعل</option>
+            <option value="false">معطل</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">حفظ</button>
+      </form>
+    </div>
+  </div>
 
-  <!-- Scripts -->
+  <!-- ✅ Create User Modal -->
+  <div id="createUserModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>إضافة مستخدم</h2>
+        <button class="close-btn" data-action="closeModal" data-modal="createUserModal">&times;</button>
+      </div>
+      <form data-submit="saveNewUser">
+        <div class="form-group">
+          <label>اسم المستخدم *</label>
+          <input type="text" id="createUsername" required>
+        </div>
+        <div class="form-group">
+          <label>كلمة المرور *</label>
+          <input type="password" id="createPassword" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>الدور *</label>
+            <select id="createUserRoleSelect"></select>
+          </div>
+          <div class="form-group">
+            <label>الصلاحية *</label>
+            <select id="createUserPermissionSelect"></select>
+          </div>
+        </div>
+        <div class="form-group" id="createUserEntityRow" style="display:none;">
+          <input type="hidden" id="createUserEntityType">
+          <label>الكيان المرتبط</label>
+          <select id="createUserEntitySelect"></select>
+        </div>
+        <div class="form-group">
+          <label>الحالة</label>
+          <select id="createUserStatus">
+            <option value="true">مفعل</option>
+            <option value="false">معطل</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">حفظ</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ✅ Change Password Modal -->
+  <div id="changePasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>تغيير كلمة المرور</h2>
+        <button class="close-btn" data-action="closeModal" data-modal="changePasswordModal">&times;</button>
+      </div>
+      <form data-submit="savePasswordChange">
+        <div class="form-group">
+          <label>كلمة المرور الجديدة *</label>
+          <input type="password" id="newPassword" required>
+        </div>
+        <div class="form-group">
+          <label>تأكيد كلمة المرور *</label>
+          <input type="password" id="confirmPassword" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">تغيير</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DEBUG PANEL (Floating Button + Side Panel) -->
+  <!-- ============================================================ -->
+  <button id="debugFloatingBtn" data-action="toggleDebug">🐞</button>
+  <div id="debugPanel">
+    <div id="debugPanelHeader">
+      <h3>🐞 Debug Panel</h3>
+      <button id="debugCloseBtn" data-action="toggleDebug">&times;</button>
+    </div>
+    <div id="debugPanelContent">
+      <div id="debugLog"></div>
+      <div id="debugPanelControls">
+        <button data-action="clearDebugLog">🧹 مسح</button>
+        <button data-action="copyDebugLog">📋 نسخ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SCRIPTS -->
+  <!-- ============================================================ -->
   <script src="js/core.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/activity.js"></script>
@@ -448,7 +601,7 @@
   <script src="js/investors.js"></script>
   <script src="js/operations.js"></script>
   <script src="js/transfers.js"></script>
-  <script src="js/reports.js"></script> <!-- ✅ NEW -->
+  <script src="js/reports.js"></script>
   <script src="js/users.js"></script>
   <script src="js/app.js"></script>
 </body>
