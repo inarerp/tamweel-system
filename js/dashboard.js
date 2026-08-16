@@ -1,14 +1,13 @@
 // ============================================================
 // نظام إدارة التمويل - Dashboard Module
 // Version: 2.0.6
-// v2.0.6: وعي كامل بالتوريدات الدورية:
-//         - select يضم أعمدة التكرار
-//         - استثناء الدورات/الأم المتكررة من تنبيهات end_date
-//         - تنبيهات استحقاق ربح الدورات (5 أيام / overdue)
+// v2.0.6: وعي كامل بالتكرار: أعمدة التكرار في select + Lazy Generation للـ Admin
+//         + استثناء عمليات profit_due_date من overdue/ending-soon
+//         + تنبيهات استحقاق الربح (danger/warning) بدون duplicate
 // v2.0.5: تنبيهات أرباح الممولين مرتبطة بالعملية
-// v2.0.4: توحيد منطق "تنتهي قريبًا": active فقط + 0..5 أيام
 // ============================================================
 var DUE_SOON_DAYS = 5;
+var DASH_STATE = { lazyRan: false };
 function initDashboard() {
 debug('📊 بدء تهيئة dashboard.js', 'info');
 registerScreenLoader('dashboard', loadDashboard);
@@ -37,7 +36,7 @@ if (overlay) { overlay.style.display = 'none'; overlay.style.visibility = 'hidde
 async function loadDashboardData() {
 debug('📥 تحميل بيانات Dashboard...', 'info');
 var opsResult = await runQuery(function() {
-return APP.supabase.from('operations').select('id, name, status, amount, client_id, end_date, start_date, final_profit, expected_profit, profit_approval_date, is_archived, company_profit_type, company_profit_value, reference_number, parent_operation_id, is_recurring, recurring_active, cycle_number, profit_due_date');
+return APP.supabase.from('operations').select('id, name, status, amount, client_id, end_date, start_date, final_profit, expected_profit, profit_approval_date, is_archived, company_profit_type, company_profit_value, reference_number, parent_operation_id, cycle_number, is_recurring, recurring_active, recurrence_interval_days, recurring_until, profit_due_date, next_cycle_start, profit_due_offset_days');
 }, { context: 'loadDashboardData-ops', throwError: true });
 var opInvResult = await runQuery(function() {
 return APP.supabase.from('operation_investors').select('id, operation_id, investor_id, contribution, profit');
@@ -126,12 +125,29 @@ function renderSection(title, icon, borderColor, content) {
 if (!content || content === '') return '';
 return '<div class="section-card" style="--accent:' + borderColor + '"><h3>' + icon + ' ' + escapeHtml(title) + '</h3>' + content + '</div>';
 }
+// ✅ v2.0.6: Lazy Generation للـ Admin (fire-and-forget) + عرض
 async function loadDashboardForAdmin() {
 debug('👔 تحميل Dashboard للإدارة', 'info');
 var alertsContainer = document.getElementById('dashboardAlerts');
 var statsContainer = document.getElementById('dashboardStats');
 if (!alertsContainer || !statsContainer) { debug('⚠️ حاويات Dashboard غير موجودة', 'warning'); return; }
+if (isAdmin() && !DASH_STATE.lazyRan) {
+DASH_STATE.lazyRan = true;
+APP.supabase.rpc('admin_generate_cycles').then(function(res) {
+var n = (res && res.data) ? res.data : 0;
+if (n > 0) {
+debug('🔄 Lazy generation: تم توليد ' + n + ' دورة — تحديث Dashboard', 'info');
+loadDashboardData().then(function(d) { renderAdminDashboard(d); });
+}
+}).catch(function(e) { debug('⚠️ lazy generation: ' + e.message, 'warning'); });
+}
 var data = await loadDashboardData();
+renderAdminDashboard(data);
+}
+function renderAdminDashboard(data) {
+var alertsContainer = document.getElementById('dashboardAlerts');
+var statsContainer = document.getElementById('dashboardStats');
+if (!alertsContainer || !statsContainer) return;
 var html = '';
 html += renderDashboardActions(data);
 html += renderDashboardAlerts(data);
@@ -154,7 +170,7 @@ if (summary.balance > 0) alerts.push({ type: 'info', icon: '💵', message: 'ل�
 var ops = data.indexes.clientOperations[APP.currentEntityId] || [];
 var today = new Date().toISOString().split('T')[0];
 ops.forEach(function(op) {
-if (op.profit_due_date) return; // ✅ الدورات لها تنبيهات استحقاق خاصة
+if (op.profit_due_date) return; // ✅ v2.0.6: الدورات لها تنبيهات استحقاق خاصة
 if (isEndingSoon(op, today)) {
 alerts.push({ type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
 }
@@ -245,20 +261,22 @@ return renderSection('إجراءات مطلوبة', '⚡', '#fd7e14', h);
 function renderDashboardAlerts(data) {
 var alerts = [];
 var today = new Date().toISOString().split('T')[0];
-// 1) عمليات متأخرة (active فقط، وتستثني الدورات/المتكررة)
+var dueSoonDate = new Date(Date.now() + DUE_SOON_DAYS * 86400000).toISOString().split('T')[0];
+// 1) عمليات متأخرة (تستثني عمليات profit_due_date)
 data.operations.forEach(function(op) {
-if (op.profit_due_date) return; // ✅ مستثناة — لها تنبيهات استحقاق
+if (op.profit_due_date) return; // ✅ v2.0.6
 if (op.status === STATUS.ACTIVE && op.end_date && op.end_date < today) alerts.push({ priority: 1, type: 'danger', icon: '🚨', message: 'عملية "' + op.name + '" متأخرة (كان يجب أن تنتهي ' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
 });
-// 2) تنتهي قريبًا — active فقط + 0..5 أيام (وتستثني الدورات)
+// 2) تنتهي قريبًا (تستثني عمليات profit_due_date)
 data.operations.forEach(function(op) {
-if (op.profit_due_date) return; // ✅ مستثناة
+if (op.profit_due_date) return; // ✅ v2.0.6
 if (isEndingSoon(op, today)) {
 alerts.push({ priority: 2, type: 'warning', icon: '⏰', message: 'عملية "' + op.name + '" ستنتهي قريباً (' + formatDate(op.end_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
 }
 });
-// 3) ✅ أرباح الممولين — مرتبطة بالعملية (نشطة + خلال 5 أيام أو متأخرة)
+// 3) أرباح الممولين للعمليات غير الدورية (نشطة + خلال 5 أيام أو متأخرة)
 data.operations.forEach(function(op) {
+if (op.profit_due_date) return; // ✅ v2.0.6: الدورات مغطاة بالتنبيه 5
 if (op.status !== STATUS.ACTIVE || !op.end_date) return;
 var d = calcDaysUntilEnd(op.end_date, today);
 if (d > DUE_SOON_DAYS) return;
@@ -284,6 +302,18 @@ if (client.is_archived) return;
 var summary = calculateClientSummary(client.id, data);
 if (summary.balance > 0 && summary.balance <= 100000) alerts.push({ priority: 4, type: 'info', icon: '💵', message: 'العميل "' + client.name + '" لديه رصيد: ' + formatMoney(summary.balance), action: 'navigateToEntity', entityType: 'client', entityId: client.id });
 });
+// 5) ✅ v2.0.6: تنبيهات استحقاق ربح الدورات — تنبيه واحد لكل عملية (بدون duplicate)
+data.operations.forEach(function(op) {
+if (!op.profit_due_date || op.status !== STATUS.ACTIVE) return;
+var s = calculateOperationSummary(op.id, data);
+var rem = s ? s.remainingProfit : 0;
+if (rem <= 0) return;
+if (op.profit_due_date < today) {
+alerts.push({ priority: 1, type: 'danger', icon: '🚨', message: 'ربح عملية "' + op.name + '" متجاوز الاستحقاق (' + formatDate(op.profit_due_date) + ')', action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
+} else if (op.profit_due_date <= dueSoonDate) {
+alerts.push({ priority: 2, type: 'warning', icon: '💰', message: 'ربح عملية "' + op.name + '" يستحق في ' + formatDate(op.profit_due_date), action: 'navigateToEntity', entityType: 'operation', entityId: op.id });
+}
+});
 if (alerts.length === 0) return '';
 alerts.sort(function(a, b) { return a.priority - b.priority; });
 var top = alerts.slice(0, 10);
@@ -298,7 +328,7 @@ var totalActiveFunding = 0, endingSoon = 0, overdue = 0, completed = 0, draft = 
 var totalOutstandingInvestorProfit = 0, totalOutstandingCapital = 0;
 data.operations.forEach(function(op) {
 if (op.status === STATUS.ACTIVE) {
-if (!op.parent_operation_id) totalActiveFunding += parseFloat(op.amount || 0); // ✅ لا مضاعفة بقيمة الدورات (amount=0 أصلًا)
+if (!op.parent_operation_id) totalActiveFunding += parseFloat(op.amount || 0); // ✅ لا مضاعفة بقيمة الدورات
 if (!op.profit_due_date && isEndingSoon(op, today)) endingSoon++;   // ✅ استثناء الدورات
 if (!op.profit_due_date && op.end_date && op.end_date < today) overdue++; // ✅ استثناء الدورات
 var summary = calculateOperationSummary(op.id, data);
